@@ -94,6 +94,7 @@
   }
 
   let activeFilter = 'all';
+  let activeType = 'all';
   let activeView = 'timeline';
   let calMonth = TODAY.getMonth();
   let calYear = TODAY.getFullYear();
@@ -104,6 +105,7 @@
   renderSpotlight();
   renderMainContent();
   bindFilters();
+  bindTypeFilters();
   bindViews();
 
   function renderSemesterProgress() {
@@ -162,9 +164,12 @@
   }
 
   function renderSpotlight() {
-    const upcoming = ASSIGNMENTS
+    let pool = [...ASSIGNMENTS];
+    if (activeFilter !== 'all') pool = pool.filter(a => a.classId === activeFilter);
+    if (activeType !== 'all') pool = pool.filter(a => a.type === activeType);
+    const upcoming = pool
       .filter(a => parseDate(a.date) >= TODAY)
-      .filter(a => a.type === 'exam' || a.type === 'due')
+      .filter(a => activeType !== 'all' || a.type === 'exam' || a.type === 'due')
       .sort((a, b) => parseDate(a.date) - parseDate(b.date));
 
     const next = upcoming[0];
@@ -199,6 +204,9 @@
     if (activeFilter !== 'all') {
       list = list.filter(a => a.classId === activeFilter);
     }
+    if (activeType !== 'all') {
+      list = list.filter(a => a.type === activeType);
+    }
     return list.sort((a, b) => parseDate(a.date) - parseDate(b.date));
   }
 
@@ -210,6 +218,20 @@
       tab.classList.add('active');
       activeFilter = tab.dataset.filter;
       renderStats();
+      renderSpotlight();
+      renderMainContent();
+    });
+  }
+
+  function bindTypeFilters() {
+    document.getElementById('typeFilters').addEventListener('click', e => {
+      const tab = e.target.closest('.type-tab');
+      if (!tab) return;
+      document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      activeType = tab.dataset.type;
+      renderStats();
+      renderSpotlight();
       renderMainContent();
     });
   }
@@ -419,8 +441,9 @@
 
     classIds.forEach(cid => {
       const cls = CLASSES[cid];
-      const allItems = ASSIGNMENTS.filter(a => a.classId === cid)
-        .sort((a, b) => parseDate(a.date) - parseDate(b.date));
+      let allItems = ASSIGNMENTS.filter(a => a.classId === cid);
+      if (activeType !== 'all') allItems = allItems.filter(a => a.type === activeType);
+      allItems.sort((a, b) => parseDate(a.date) - parseDate(b.date));
       const upcomingItems = allItems.filter(a => parseDate(a.date) >= TODAY);
       const pastItems = allItems.filter(a => parseDate(a.date) < TODAY);
 

@@ -474,6 +474,112 @@ app.delete('/api/semester/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// ======================== ASSIGNMENT CRUD ========================
+
+app.post('/api/assignment', authMiddleware, async (req, res) => {
+  const { classId, title, date, end_date, type } = req.body;
+  if (!classId || !title || !date || !type) return res.status(400).json({ error: 'Missing required fields' });
+
+  try {
+    const { data: cls } = await supabase.from('classes')
+      .select('id, semester_id, semesters!inner(user_id)')
+      .eq('id', classId).single();
+    if (!cls || cls.semesters.user_id !== req.userId) return res.status(404).json({ error: 'Class not found' });
+
+    const { data: row, error } = await supabase.from('assignments').insert({
+      class_id: classId, title, date, end_date: end_date || null, type
+    }).select().single();
+    if (error) throw error;
+
+    const classKey = (await supabase.from('classes').select('class_key').eq('id', classId).single()).data.class_key;
+    res.json({ ok: true, assignment: { id: row.id, date: row.date, endDate: row.end_date, classId: classKey, title: row.title, type: row.type, completed: false } });
+  } catch (err) {
+    console.error('Create assignment error:', err.message);
+    res.status(500).json({ error: 'Failed to create assignment' });
+  }
+});
+
+app.put('/api/assignment/:id', authMiddleware, async (req, res) => {
+  const { title, date, end_date, type } = req.body;
+  if (!title || !date || !type) return res.status(400).json({ error: 'Missing required fields' });
+
+  try {
+    const { data: rows } = await supabase.from('assignments')
+      .select('id, classes!inner(semester_id, semesters!inner(user_id))')
+      .eq('id', req.params.id);
+    const owned = rows?.some(r => r.classes?.semesters?.user_id === req.userId);
+    if (!owned) return res.status(404).json({ error: 'Not found' });
+
+    const { error } = await supabase.from('assignments').update({
+      title, date, end_date: end_date || null, type
+    }).eq('id', req.params.id);
+    if (error) throw error;
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Update assignment error:', err.message);
+    res.status(500).json({ error: 'Failed to update assignment' });
+  }
+});
+
+app.delete('/api/assignment/:id', authMiddleware, async (req, res) => {
+  try {
+    const { data: rows } = await supabase.from('assignments')
+      .select('id, classes!inner(semester_id, semesters!inner(user_id))')
+      .eq('id', req.params.id);
+    const owned = rows?.some(r => r.classes?.semesters?.user_id === req.userId);
+    if (!owned) return res.status(404).json({ error: 'Not found' });
+
+    const { error } = await supabase.from('assignments').delete().eq('id', req.params.id);
+    if (error) throw error;
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Delete assignment error:', err.message);
+    res.status(500).json({ error: 'Failed to delete assignment' });
+  }
+});
+
+// ======================== PARSE TEXT ========================
+
+app.post('/api/parse-text', authMiddleware, async (req, res) => {
+  if (!process.env.OPENAI_API_KEY) {
+    return res.status(503).json({ error: 'OPENAI_API_KEY is not configured on the server.' });
+  }
+  const { text } = req.body;
+  if (!text || text.trim().length < 20) {
+    return res.status(400).json({ error: 'Please paste more text — the input is too short.' });
+  }
+
+  const prompt = EXTRACTION_PROMPT + '\n\nExtract the class schedule from the following syllabus text:\n\n' + text;
+
+  let raw;
+  try {
+    raw = await callOpenAI(prompt);
+  } catch (err) {
+    console.error('OpenAI error:', err.message);
+    return res.status(502).json({ error: err.message });
+  }
+
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('No JSON in response:', raw?.slice(0, 500));
+      return res.status(502).json({ error: 'Could not extract a schedule from that text. Try pasting more detail with dates.' });
+    }
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    if (!parsed.semester_name || !parsed.classes || !Array.isArray(parsed.classes) || parsed.classes.length === 0) {
+      console.error('Missing fields:', JSON.stringify(parsed).slice(0, 500));
+      return res.status(422).json({ error: 'No classes or dates found in the text.' });
+    }
+    res.json({ ok: true, data: parsed });
+  } catch (err) {
+    console.error('Parse error:', err.message, '| Raw:', raw?.slice(0, 500));
+    res.status(502).json({ error: 'Something went wrong. Please try again.' });
+  }
+});
+
 // ======================== PAGE ROUTES ========================
 
 app.get('/dashboard', (req, res) => {

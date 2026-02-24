@@ -108,20 +108,34 @@
           <p>Drop your syllabus files below and we'll build your personalized dashboard.</p>
         </div>
 
-        <div class="upload-zone" id="uploadZone">
-          <div class="upload-zone-content">
-            <div class="upload-icon">📄</div>
-            <p class="upload-zone-text">Drag & drop PDFs, images, or text files here</p>
-            <p class="upload-zone-sub">or <button type="button" class="browse-link" id="browseBtn">browse files</button> — up to 10 files</p>
-          </div>
-          <input type="file" id="fileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" />
+        <div class="input-tabs">
+          <button class="input-tab active" data-tab="files" id="tabFiles">Upload Files</button>
+          <button class="input-tab" data-tab="paste" id="tabPaste">Paste Text</button>
         </div>
 
-        <div class="file-list" id="fileList"></div>
+        <div id="filesPane">
+          <div class="upload-zone" id="uploadZone">
+            <div class="upload-zone-content">
+              <div class="upload-icon">📄</div>
+              <p class="upload-zone-text">Drag & drop PDFs, images, or text files here</p>
+              <p class="upload-zone-sub">or <button type="button" class="browse-link" id="browseBtn">browse files</button> — up to 10 files</p>
+            </div>
+            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" />
+          </div>
 
-        <button class="btn-primary upload-submit" id="uploadBtn" disabled>
-          <span id="uploadBtnText">Upload & Parse Syllabuses</span>
-        </button>
+          <div class="file-list" id="fileList"></div>
+
+          <button class="btn-primary upload-submit" id="uploadBtn" disabled>
+            <span id="uploadBtnText">Upload & Parse Syllabuses</span>
+          </button>
+        </div>
+
+        <div id="pastePane" style="display:none">
+          <textarea class="paste-textarea" id="pasteInput" placeholder="Paste your syllabus schedule text here...\n\nInclude class names, assignment titles, and dates."></textarea>
+          <button class="btn-primary upload-submit" id="pasteBtn" disabled>
+            <span id="pasteBtnText">Parse Pasted Text</span>
+          </button>
+        </div>
 
         <div class="upload-status" id="uploadStatus"></div>
 
@@ -201,6 +215,47 @@
       showReview(result.data, selectedFiles);
     });
 
+    document.getElementById('tabFiles').addEventListener('click', () => {
+      document.getElementById('tabFiles').classList.add('active');
+      document.getElementById('tabPaste').classList.remove('active');
+      document.getElementById('filesPane').style.display = '';
+      document.getElementById('pastePane').style.display = 'none';
+    });
+    document.getElementById('tabPaste').addEventListener('click', () => {
+      document.getElementById('tabPaste').classList.add('active');
+      document.getElementById('tabFiles').classList.remove('active');
+      document.getElementById('filesPane').style.display = 'none';
+      document.getElementById('pastePane').style.display = '';
+    });
+
+    const pasteInput = document.getElementById('pasteInput');
+    const pasteBtn = document.getElementById('pasteBtn');
+    pasteInput.addEventListener('input', () => { pasteBtn.disabled = pasteInput.value.trim().length < 20; });
+
+    pasteBtn.addEventListener('click', async () => {
+      const btnText = document.getElementById('pasteBtnText');
+      const status = document.getElementById('uploadStatus');
+      pasteBtn.disabled = true;
+      btnText.textContent = 'Parsing with AI...';
+      status.innerHTML = '<div class="status-loading"><div class="loading-spinner small"></div> This usually takes 10\u201320 seconds</div>';
+
+      try {
+        const r = await fetch('/api/parse-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: pasteInput.value })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error);
+        status.innerHTML = '';
+        showReview(data.data, []);
+      } catch (err) {
+        status.innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
+        pasteBtn.disabled = false;
+        btnText.textContent = 'Parse Pasted Text';
+      }
+    });
+
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       await fetch('/api/logout', { method: 'POST' });
       window.location.href = '/';
@@ -211,9 +266,14 @@
     const section = document.getElementById('reviewSection');
     const content = document.getElementById('reviewContent');
     section.style.display = 'block';
-    document.getElementById('uploadZone').style.display = 'none';
-    document.getElementById('fileList').style.display = 'none';
-    document.getElementById('uploadBtn').style.display = 'none';
+    const filesPane = document.getElementById('filesPane');
+    const pastePane = document.getElementById('pastePane');
+    const inputTabs = document.querySelector('.input-tabs');
+    if (filesPane) filesPane.style.display = 'none';
+    if (pastePane) pastePane.style.display = 'none';
+    if (inputTabs) inputTabs.style.display = 'none';
+    const reprocessBtn = document.getElementById('reprocessBtn');
+    if (reprocessBtn && (!files || files.length === 0)) reprocessBtn.style.display = 'none';
 
     let html = `
       <div class="review-semester">
@@ -310,6 +370,7 @@
           <div class="user-menu">
             <span class="user-name">${esc(userName)}</span>
             <button class="btn-ghost btn-sm" id="exportPdfBtn" title="Export PDF">📥 Export</button>
+            <button class="btn-primary btn-sm" id="addAssignmentBtn">+ Add Assignment</button>
             <button class="btn-ghost btn-sm" id="addSyllabusBtn">+ Add Syllabuses</button>
             <button class="btn-ghost btn-sm" id="newUploadBtn">New Semester</button>
             <button class="btn-ghost btn-sm btn-icon" id="settingsBtn" title="Settings">⚙</button>
@@ -368,6 +429,10 @@
         await fetch(`/api/semester/${dashData.semester.id}`, { method: 'DELETE' });
       }
       window.location.reload();
+    });
+
+    document.getElementById('addAssignmentBtn').addEventListener('click', () => {
+      renderAssignmentModal();
     });
 
     document.getElementById('addSyllabusBtn').addEventListener('click', () => {
@@ -512,6 +577,7 @@
       case 'byclass': renderByClass(container); break;
     }
     bindCheckboxes();
+    bindEditClicks();
     bindPastToggle();
   }
 
@@ -534,7 +600,7 @@
         <div class="tl-dot-container">
           <div class="tl-dot" style="background:${c.hex};box-shadow:0 0 8px rgba(${c.rgb},0.4)"></div>
         </div>
-        <div class="tl-content">
+        <div class="tl-content" data-aid="${a.id}" style="cursor:pointer">
           <div class="tl-class" style="color:${c.hex}">${cls.short}</div>
           <div class="tl-title">${esc(a.title)}</div>
           <div class="tl-meta">
@@ -646,7 +712,7 @@
         ${events.map(e => {
           const c = getColor(e.classId);
           const cls = CLASSES[e.classId] || { short: '?' };
-          return `<div class="cal-event" style="background:rgba(${c.rgb},0.08);color:${c.hex};border-left:2px solid ${c.hex}" title="${cls.short}: ${e.title}">${esc(e.title)}</div>`;
+          return `<div class="cal-event" data-aid="${e.id}" style="background:rgba(${c.rgb},0.08);color:${c.hex};border-left:2px solid ${c.hex};cursor:pointer" title="${cls.short}: ${e.title}">${esc(e.title)}</div>`;
         }).join('')}
       </div>`;
     }
@@ -692,7 +758,7 @@
         const d = parseDate(a.date);
         html += `<div class="class-item">
           <button class="tl-check ${a.completed ? 'checked' : ''}" data-id="${a.id}" title="Mark complete" style="width:16px;height:16px;min-width:16px"></button>
-          <div class="class-item-info">
+          <div class="class-item-info" data-aid="${a.id}" style="cursor:pointer">
             <div class="class-item-title">${esc(a.title)}</div>
             <div class="class-item-date">${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
           </div>
@@ -711,7 +777,7 @@
           const d = parseDate(a.date);
           html += `<div class="class-item past">
             <button class="tl-check ${a.completed ? 'checked' : ''}" data-id="${a.id}" title="Mark complete" style="width:16px;height:16px;min-width:16px"></button>
-            <div class="class-item-info">
+            <div class="class-item-info" data-aid="${a.id}" style="cursor:pointer">
               <div class="class-item-title">${esc(a.title)}</div>
               <div class="class-item-date">${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
             </div>
@@ -889,6 +955,152 @@
     return { data: { ...semesterData, classes: allClasses } };
   }
 
+  // ======================== ASSIGNMENT MODAL ========================
+
+  function refreshDashboard() {
+    renderStats();
+    renderSpotlight();
+    renderMainContent();
+  }
+
+  function renderAssignmentModal(existingAssignment) {
+    const existing = document.getElementById('assignmentModal');
+    if (existing) existing.remove();
+
+    const isEdit = !!existingAssignment;
+    const classEntries = Object.entries(CLASSES);
+    const types = ['due', 'exam', 'quiz', 'conference', 'workshop', 'prep'];
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay open';
+    modal.id = 'assignmentModal';
+    modal.innerHTML = `
+      <div class="modal-card" style="max-width:480px">
+        <button class="modal-close" id="closeAssignmentModal">&times;</button>
+        <h3 class="settings-title">${isEdit ? 'Edit Assignment' : 'Add Assignment'}</h3>
+        <form id="assignmentForm" class="auth-form">
+          <div class="form-group">
+            <label>Class</label>
+            <select id="asgClassSelect" class="setting-select" style="width:100%" ${isEdit ? 'disabled' : ''}>
+              ${classEntries.map(([key, cls]) => `<option value="${cls.dbId}" ${isEdit && existingAssignment.classId === key ? 'selected' : ''}>${cls.icon} ${cls.name}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Title</label>
+            <input type="text" id="asgTitle" value="${isEdit ? esc(existingAssignment.title) : ''}" placeholder="e.g. Midterm Exam" required />
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input type="date" id="asgDate" value="${isEdit ? existingAssignment.date : ''}" required />
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select id="asgType" class="setting-select" style="width:100%">
+              ${types.map(t => `<option value="${t}" ${isEdit && existingAssignment.type === t ? 'selected' : ''}>${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="asg-modal-actions">
+            ${isEdit ? '<button type="button" class="btn-danger" id="asgDeleteBtn">Delete</button>' : '<span></span>'}
+            <button type="submit" class="btn-primary">${isEdit ? 'Save Changes' : 'Add Assignment'}</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('closeAssignmentModal').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('assignmentForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = isEdit ? 'Saving...' : 'Adding...';
+
+      const payload = {
+        title: document.getElementById('asgTitle').value.trim(),
+        date: document.getElementById('asgDate').value,
+        type: document.getElementById('asgType').value,
+        end_date: null,
+      };
+
+      try {
+        if (isEdit) {
+          const r = await fetch(`/api/assignment/${existingAssignment.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const result = await r.json();
+          if (!r.ok) throw new Error(result.error);
+
+          const a = ASSIGNMENTS.find(x => x.id === existingAssignment.id);
+          if (a) { a.title = payload.title; a.date = payload.date; a.type = payload.type; a.endDate = null; }
+        } else {
+          payload.classId = parseInt(document.getElementById('asgClassSelect').value);
+          const r = await fetch('/api/assignment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const result = await r.json();
+          if (!r.ok) throw new Error(result.error);
+          ASSIGNMENTS.push(result.assignment);
+        }
+        modal.remove();
+        refreshDashboard();
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = isEdit ? 'Save Changes' : 'Add Assignment';
+        alert('Error: ' + err.message);
+      }
+    });
+
+    if (isEdit) {
+      document.getElementById('asgDeleteBtn').addEventListener('click', async () => {
+        if (!confirm('Delete this assignment?')) return;
+        const btn = document.getElementById('asgDeleteBtn');
+        btn.disabled = true;
+        btn.textContent = 'Deleting...';
+        try {
+          const r = await fetch(`/api/assignment/${existingAssignment.id}`, { method: 'DELETE' });
+          const result = await r.json();
+          if (!r.ok) throw new Error(result.error);
+          const idx = ASSIGNMENTS.findIndex(x => x.id === existingAssignment.id);
+          if (idx !== -1) ASSIGNMENTS.splice(idx, 1);
+          modal.remove();
+          refreshDashboard();
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = 'Delete';
+          alert('Error: ' + err.message);
+        }
+      });
+    }
+  }
+
+  function bindEditClicks() {
+    document.querySelectorAll('.tl-content[data-aid]').forEach(el => {
+      el.addEventListener('click', () => {
+        const a = ASSIGNMENTS.find(x => x.id === parseInt(el.dataset.aid));
+        if (a) renderAssignmentModal(a);
+      });
+    });
+    document.querySelectorAll('.class-item-info[data-aid]').forEach(el => {
+      el.addEventListener('click', () => {
+        const a = ASSIGNMENTS.find(x => x.id === parseInt(el.dataset.aid));
+        if (a) renderAssignmentModal(a);
+      });
+    });
+    document.querySelectorAll('.cal-event[data-aid]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const a = ASSIGNMENTS.find(x => x.id === parseInt(el.dataset.aid));
+        if (a) renderAssignmentModal(a);
+      });
+    });
+  }
+
   // ======================== ADD SYLLABUS MODAL ========================
 
   function renderAddSyllabusModal() {
@@ -906,20 +1118,34 @@
           <p>Upload additional syllabus files to add to your current schedule.</p>
         </div>
 
-        <div class="upload-zone" id="addUploadZone">
-          <div class="upload-zone-content">
-            <div class="upload-icon">📄</div>
-            <p class="upload-zone-text">Drag & drop PDFs, images, or text files here</p>
-            <p class="upload-zone-sub">or <button type="button" class="browse-link" id="addBrowseBtn">browse files</button> — up to 10 files</p>
-          </div>
-          <input type="file" id="addFileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" />
+        <div class="input-tabs">
+          <button class="input-tab active" data-tab="files" id="addTabFiles">Upload Files</button>
+          <button class="input-tab" data-tab="paste" id="addTabPaste">Paste Text</button>
         </div>
 
-        <div class="file-list" id="addFileList"></div>
+        <div id="addFilesPane">
+          <div class="upload-zone" id="addUploadZone">
+            <div class="upload-zone-content">
+              <div class="upload-icon">📄</div>
+              <p class="upload-zone-text">Drag & drop PDFs, images, or text files here</p>
+              <p class="upload-zone-sub">or <button type="button" class="browse-link" id="addBrowseBtn">browse files</button> — up to 10 files</p>
+            </div>
+            <input type="file" id="addFileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" />
+          </div>
 
-        <button class="btn-primary upload-submit" id="addUploadBtn" disabled>
-          <span id="addUploadBtnText">Upload & Parse Syllabuses</span>
-        </button>
+          <div class="file-list" id="addFileList"></div>
+
+          <button class="btn-primary upload-submit" id="addUploadBtn" disabled>
+            <span id="addUploadBtnText">Upload & Parse Syllabuses</span>
+          </button>
+        </div>
+
+        <div id="addPastePane" style="display:none">
+          <textarea class="paste-textarea" id="addPasteInput" placeholder="Paste your syllabus schedule text here...\n\nInclude class names, assignment titles, and dates."></textarea>
+          <button class="btn-primary upload-submit" id="addPasteBtn" disabled>
+            <span id="addPasteBtnText">Parse Pasted Text</span>
+          </button>
+        </div>
 
         <div class="upload-status" id="addUploadStatus"></div>
 
@@ -1002,15 +1228,61 @@
       status.innerHTML = '';
       showAddReview(result.data, modal, selectedFiles);
     });
+
+    document.getElementById('addTabFiles').addEventListener('click', () => {
+      document.getElementById('addTabFiles').classList.add('active');
+      document.getElementById('addTabPaste').classList.remove('active');
+      document.getElementById('addFilesPane').style.display = '';
+      document.getElementById('addPastePane').style.display = 'none';
+    });
+    document.getElementById('addTabPaste').addEventListener('click', () => {
+      document.getElementById('addTabPaste').classList.add('active');
+      document.getElementById('addTabFiles').classList.remove('active');
+      document.getElementById('addFilesPane').style.display = 'none';
+      document.getElementById('addPastePane').style.display = '';
+    });
+
+    const addPasteInput = document.getElementById('addPasteInput');
+    const addPasteBtn = document.getElementById('addPasteBtn');
+    addPasteInput.addEventListener('input', () => { addPasteBtn.disabled = addPasteInput.value.trim().length < 20; });
+
+    addPasteBtn.addEventListener('click', async () => {
+      const btnText = document.getElementById('addPasteBtnText');
+      const status = document.getElementById('addUploadStatus');
+      addPasteBtn.disabled = true;
+      btnText.textContent = 'Parsing with AI...';
+      status.innerHTML = '<div class="status-loading"><div class="loading-spinner small"></div> This usually takes 10\u201320 seconds</div>';
+
+      try {
+        const r = await fetch('/api/parse-text', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: addPasteInput.value })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error);
+        status.innerHTML = '';
+        showAddReview(data.data, modal, []);
+      } catch (err) {
+        status.innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
+        addPasteBtn.disabled = false;
+        btnText.textContent = 'Parse Pasted Text';
+      }
+    });
   }
 
   function showAddReview(data, modal, files) {
     const section = document.getElementById('addReviewSection');
     const content = document.getElementById('addReviewContent');
     section.style.display = 'block';
-    document.getElementById('addUploadZone').style.display = 'none';
-    document.getElementById('addFileList').style.display = 'none';
-    document.getElementById('addUploadBtn').style.display = 'none';
+    const addFilesPane = document.getElementById('addFilesPane');
+    const addPastePane = document.getElementById('addPastePane');
+    const addInputTabs = modal.querySelector('.input-tabs');
+    if (addFilesPane) addFilesPane.style.display = 'none';
+    if (addPastePane) addPastePane.style.display = 'none';
+    if (addInputTabs) addInputTabs.style.display = 'none';
+    const addReprocessBtn = document.getElementById('addReprocessBtn');
+    if (addReprocessBtn && (!files || files.length === 0)) addReprocessBtn.style.display = 'none';
 
     let html = '';
     data.classes.forEach((cls, i) => {

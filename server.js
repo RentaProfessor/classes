@@ -6,8 +6,174 @@ const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const pdfParse = require('pdf-parse');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const crypto = require('crypto');
+
+// Optional: only load Gemini if key is set
+let GoogleGenerativeAI;
+if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your-gemini-api-key') {
+  try { GoogleGenerativeAI = require('@google/generative-ai').GoogleGenerativeAI; } catch (_) {}
+}
+
+// --- AI provider: xAI > Groq > Ollama > Gemini ---
+const XAI_KEY = process.env.XAI_API_KEY && process.env.XAI_API_KEY !== 'your_api_key';
+const GROQ_KEY = process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'your-groq-api-key';
+const OLLAMA_BASE = (process.env.OLLAMA_BASE_URL || '').replace(/\/$/, '');
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2';
+const OLLAMA_URL = process.env.OLLAMA_BASE_URL && process.env.OLLAMA_BASE_URL !== 'false' && process.env.OLLAMA_BASE_URL !== '0' && String(process.env.OLLAMA_BASE_URL).startsWith('http');
+const GEMINI_KEY = process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your-gemini-api-key';
+
+function getAIProvider() {
+  if (XAI_KEY) return 'xai';
+  if (GROQ_KEY) return 'groq';
+  if (OLLAMA_URL) return 'ollama';
+  if (GoogleGenerativeAI && GEMINI_KEY) return 'gemini';
+  return null;
+}
+
+function partsToTextPrompt(parts) {
+  const textParts = parts.filter(p => p.text).map(p => p.text);
+  const imageCount = parts.filter(p => p.inlineData).length;
+  let full = textParts.join('\n');
+  if (imageCount > 0) full += `\n\n(The user also uploaded ${imageCount} image(s) that could not be sent to this AI. Use the text above only, or use Gemini for image support.)`;
+  return full;
+}
+
+async function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function extractWithOllama(promptText) {
+  const base = OLLAMA_BASE || 'http://localhost:11434';
+  const url = `${base}/api/generate`;
+  const maxTries = 3;
+  let lastErr;
+  for (let attempt = 1; attempt <= maxTries; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: OLLAMA_MODEL, prompt: promptText, stream: false }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.response || '';
+      }
+      const t = await res.text();
+      if (res.status === 404) throw new Error(`Ollama model "${OLLAMA_MODEL}" not found. Run: ollama run ${OLLAMA_MODEL}`);
+      lastErr = new Error(t || `Ollama error ${res.status}`);
+    } catch (err) {
+      lastErr = err;
+      if (err.message?.includes('not found')) throw err;
+    }
+    if (attempt < maxTries) await sleep(2000 * attempt);
+  }
+  throw new Error(lastErr?.message || 'Ollama request failed. Check that Ollama is running and OLLAMA_BASE_URL is correct.');
+}
+
+async function extractWithGroq(promptText) {
+  const maxTries = 3;
+  let lastErr;
+  for (let attempt = 1; attempt <= maxTries; attempt++) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user', content: promptText }],
+          max_tokens: 4096,
+          temperature: 0.2,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content != null) return content;
+      }
+      const t = await res.text();
+      lastErr = new Error(t || `Groq error ${res.status}`);
+      if (res.status === 429 && attempt < maxTries) {
+        await sleep(4000 * attempt);
+        continue;
+      }
+      if (res.status === 401) throw new Error('Invalid Groq API key. Get a free key at console.groq.com');
+      throw lastErr;
+    } catch (err) {
+      lastErr = err;
+      if (err.message?.includes('Invalid Groq')) throw err;
+      if (attempt < maxTries) await sleep(2000 * attempt);
+    }
+  }
+  throw new Error(lastErr?.message || 'Syllabus parsing failed. Please try again in a moment.');
+}
+
+async function extractWithXAI(promptText) {
+  const maxTries = 3;
+  let lastErr;
+  for (let attempt = 1; attempt <= maxTries; attempt++) {
+    try {
+      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.XAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'grok-3-mini-fast',
+          messages: [{ role: 'user', content: promptText }],
+          max_tokens: 4096,
+          temperature: 0.2,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const content = data.choices?.[0]?.message?.content;
+        if (content != null) return content;
+      }
+      const t = await res.text();
+      lastErr = new Error(t || `xAI error ${res.status}`);
+      if (res.status === 429 && attempt < maxTries) {
+        await sleep(4000 * attempt);
+        continue;
+      }
+      if (res.status === 401) throw new Error('Invalid xAI API key. Check your key at console.x.ai');
+      throw lastErr;
+    } catch (err) {
+      lastErr = err;
+      if (err.message?.includes('Invalid xAI')) throw err;
+      if (attempt < maxTries) await sleep(2000 * attempt);
+    }
+  }
+  throw new Error(lastErr?.message || 'Syllabus parsing failed. Please try again in a moment.');
+}
+
+async function extractWithGemini(parts) {
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const result = await model.generateContent(parts);
+  return result.response.text();
+}
+
+const NO_AI_MESSAGE = 'Syllabus parsing is not configured. Set XAI_API_KEY (console.x.ai) or GROQ_API_KEY (console.groq.com) in your server environment.';
+
+async function extractScheduleWithAI(parts) {
+  const provider = getAIProvider();
+  if (!provider) throw new Error(NO_AI_MESSAGE);
+  console.log(`Using AI provider: ${provider}`);
+  const textPrompt = partsToTextPrompt(parts);
+  const hasImages = parts.some(p => p.inlineData);
+  if (provider === 'xai') return extractWithXAI(textPrompt);
+  if (provider === 'ollama') return extractWithOllama(textPrompt);
+  if (provider === 'groq') return extractWithGroq(textPrompt);
+  if (provider === 'gemini') {
+    if (hasImages) return extractWithGemini(parts);
+    return extractWithGemini([{ text: textPrompt }]);
+  }
+  throw new Error('No AI provider available');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -149,19 +315,18 @@ app.get('/api/me', authMiddleware, async (req, res) => {
   }
 });
 
-// ======================== SYLLABUS PARSE (Gemini Free Tier) ========================
+// ======================== SYLLABUS PARSE (Ollama / Groq / Gemini) ========================
 
 app.post('/api/upload-syllabus', authMiddleware, upload.array('files', 10), async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === 'your-gemini-api-key') {
-    return res.status(500).json({ error: 'Gemini API key not configured' });
+  if (!getAIProvider()) {
+    return res.status(503).json({
+      error: NO_AI_MESSAGE,
+    });
   }
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: 'No files uploaded' });
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   const parts = [{ text: EXTRACTION_PROMPT + '\n\nExtract the class schedule from the following syllabuses:\n' }];
 
   const fileErrors = [];
@@ -203,32 +368,28 @@ app.post('/api/upload-syllabus', authMiddleware, upload.array('files', 10), asyn
 
   let raw;
   try {
-    const result = await model.generateContent(parts);
-    raw = result.response.text();
+    raw = await extractScheduleWithAI(parts);
   } catch (err) {
-    console.error('Gemini API error:', err.message);
-    const msg = err.message?.includes('API key') ? 'Gemini API key is invalid or expired.'
-      : err.message?.includes('quota') || err.message?.includes('429') ? 'Gemini rate limit hit — wait a minute and try again.'
-      : `AI service error: ${err.message}`;
-    return res.status(502).json({ error: msg });
+    console.error('AI extract error:', err.message);
+    return res.status(502).json({ error: err.message || 'AI extraction failed.' });
   }
 
   try {
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('Gemini returned no JSON object. Raw response:', raw.slice(0, 500));
-      return res.status(502).json({ error: 'AI did not return valid schedule data. Try uploading clearer files.' });
+      console.error('AI returned no JSON. Raw (first 500):', raw?.slice(0, 500));
+      return res.status(502).json({ error: 'We couldn\'t read a schedule from that. Try PDF or text syllabuses with clear dates and assignment lists.' });
     }
     const parsed = JSON.parse(jsonMatch[0]);
 
     if (!parsed.semester_name || !parsed.classes || !Array.isArray(parsed.classes) || parsed.classes.length === 0) {
       console.error('Parsed JSON missing required fields:', JSON.stringify(parsed).slice(0, 500));
-      return res.status(422).json({ error: 'AI could not find any classes or dates in your files. Make sure your syllabuses contain a schedule or list of assignments.' });
+      return res.status(422).json({ error: 'No classes or dates were found in your files. Make sure the syllabus includes a schedule or list of assignments with dates.' });
     }
     res.json({ ok: true, data: parsed });
   } catch (err) {
-    console.error('JSON parse error:', err.message, '| Raw (first 500 chars):', raw?.slice(0, 500));
-    res.status(502).json({ error: 'AI returned malformed data. Try re-uploading — results can vary between attempts.' });
+    console.error('JSON parse error:', err.message, '| Raw (first 500):', raw?.slice(0, 500));
+    res.status(502).json({ error: 'Something went wrong reading the schedule. Please try again or upload a different file.' });
   }
 });
 

@@ -71,7 +71,7 @@
     return new Date(parts[0], parts[1] - 1, parts[2]);
   }
 
-  const TYPE_PRIORITY = { exam: 0, quiz: 1, due: 2, conference: 3, workshop: 4, prep: 5 };
+  const TYPE_PRIORITY = { exam: 0, quiz: 1, due: 2, discussion: 3, conference: 4, workshop: 5, prep: 6 };
 
   function compareAssignments(a, b) {
     const da = parseDate(a.date), db = parseDate(b.date);
@@ -130,10 +130,10 @@
           <div class="upload-zone" id="uploadZone">
             <div class="upload-zone-content">
               <div class="upload-icon">📄</div>
-              <p class="upload-zone-text">Drag & drop PDFs, images, or text files here</p>
+              <p class="upload-zone-text">Drag & drop PDFs, spreadsheets, images, or calendar files here</p>
               <p class="upload-zone-sub">or <button type="button" class="browse-link" id="browseBtn">browse files</button> — up to 10 files</p>
             </div>
-            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" />
+            <input type="file" id="fileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp,.csv,.xlsx,.xls,.ics" style="display:none" />
           </div>
 
           <div class="file-list" id="fileList"></div>
@@ -194,7 +194,7 @@
     function renderFileList() {
       fileList.innerHTML = selectedFiles.map((f, i) => `
         <div class="file-item">
-          <span class="file-item-icon">${f.type.includes('pdf') ? '📄' : f.type.includes('image') ? '🖼️' : '📝'}</span>
+          <span class="file-item-icon">${f.type.includes('pdf') ? '📄' : f.type.includes('image') ? '🖼️' : f.type.includes('sheet') || f.name.endsWith('.csv') || f.name.endsWith('.xlsx') || f.name.endsWith('.xls') ? '📊' : f.name.endsWith('.ics') ? '📅' : '📝'}</span>
           <span class="file-item-name">${esc(f.name)}</span>
           <span class="file-item-size">${(f.size / 1024).toFixed(0)} KB</span>
           <button class="file-item-remove" data-idx="${i}">&times;</button>
@@ -400,6 +400,7 @@
             <button class="type-tab" data-type="exam">Exams</button>
             <button class="type-tab" data-type="due">Assignments</button>
             <button class="type-tab" data-type="quiz">Quizzes</button>
+            <button class="type-tab" data-type="discussion">Discussions</button>
             <button class="type-tab" data-type="conference">Conferences</button>
             <button class="type-tab" data-type="workshop">Workshops</button>
             <button class="type-tab" data-type="prep">Prep Work</button>
@@ -982,7 +983,7 @@
 
     const isEdit = !!existingAssignment;
     const classEntries = Object.entries(CLASSES);
-    const types = ['due', 'exam', 'quiz', 'conference', 'workshop', 'prep'];
+    const types = ['due', 'exam', 'quiz', 'discussion', 'conference', 'workshop', 'prep'];
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay open';
@@ -1140,10 +1141,10 @@
           <div class="upload-zone" id="addUploadZone">
             <div class="upload-zone-content">
               <div class="upload-icon">📄</div>
-              <p class="upload-zone-text">Drag & drop PDFs, images, or text files here</p>
+              <p class="upload-zone-text">Drag & drop PDFs, spreadsheets, images, or calendar files here</p>
               <p class="upload-zone-sub">or <button type="button" class="browse-link" id="addBrowseBtn">browse files</button> — up to 10 files</p>
             </div>
-            <input type="file" id="addFileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" />
+            <input type="file" id="addFileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp,.csv,.xlsx,.xls,.ics" style="display:none" />
           </div>
 
           <div class="file-list" id="addFileList"></div>
@@ -1208,7 +1209,7 @@
     function renderList() {
       fileList.innerHTML = selectedFiles.map((f, i) => `
         <div class="file-item">
-          <span class="file-item-icon">${f.type.includes('pdf') ? '📄' : '📝'}</span>
+          <span class="file-item-icon">${f.type.includes('pdf') ? '📄' : f.type.includes('image') ? '🖼️' : f.type.includes('sheet') || f.name.endsWith('.csv') || f.name.endsWith('.xlsx') || f.name.endsWith('.xls') ? '📊' : f.name.endsWith('.ics') ? '📅' : '📝'}</span>
           <span class="file-item-name">${esc(f.name)}</span>
           <span class="file-item-size">${(f.size / 1024).toFixed(0)} KB</span>
           <button class="file-item-remove" data-idx="${i}">&times;</button>
@@ -1502,6 +1503,7 @@
             else if (t === 'quiz') data.cell.styles.textColor = [96, 165, 250];
             else if (t === 'due') data.cell.styles.textColor = [251, 191, 36];
             else if (t === 'conference') data.cell.styles.textColor = [167, 139, 250];
+            else if (t === 'discussion') data.cell.styles.textColor = [251, 146, 60];
             else if (t === 'workshop') data.cell.styles.textColor = [52, 211, 153];
           }
         }

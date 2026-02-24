@@ -6,6 +6,7 @@ const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 const pdfParse = require('pdf-parse');
+const XLSX = require('xlsx');
 const crypto = require('crypto');
 
 async function callOpenAI(content) {
@@ -80,7 +81,7 @@ function setAuthCookie(res, token) {
   res.cookie('token', token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 24 * 60 * 60 * 1000 });
 }
 
-const EXTRACTION_PROMPT = `You extract structured class schedule data from syllabuses. Output ONLY valid JSON — no markdown, no backticks, no explanation. Use this exact schema:
+const EXTRACTION_PROMPT = `You extract structured class schedule data from syllabuses, spreadsheets, and calendar exports. Output ONLY valid JSON — no markdown, no backticks, no explanation. Use this exact schema:
 {
   "semester_name": "Spring 2026",
   "semester_start": "2026-01-12",
@@ -97,14 +98,27 @@ const EXTRACTION_PROMPT = `You extract structured class schedule data from sylla
 }
 
 Rules:
-- type must be one of: "exam", "due", "quiz", "conference", "workshop", "prep"
-- Dates MUST be YYYY-MM-DD format
+- type must be one of: "exam", "due", "quiz", "discussion", "conference", "workshop", "prep"
+- "discussion" = discussion posts, discussion boards, class discussions, forum posts — these are scheduled class activities, NOT homework assignments
+- "due" = homework, papers, projects, presentations, labs, readings, essays, problem sets
+- "exam" = midterms, finals, exams, tests
+- "quiz" = quizzes, pop quizzes
+- "conference" = one-on-one meetings, office hours appointments, conferences with professor
+- "workshop" = in-class workshops, peer review sessions, group activities
+- "prep" = preparation tasks, pre-class readings, study guides
+- ALL dates MUST be YYYY-MM-DD format. Pay very close attention to dates:
+  * If the input is a spreadsheet or table, dates may be in columns — map them carefully to each row
+  * Dates may be in M/D/YYYY, MM/DD/YYYY, DD-Mon-YYYY, "January 15, 2026", or other formats — convert ALL to YYYY-MM-DD
+  * If a date says "Week 5" or "Week of Jan 20", use the Monday of that week
+  * If only a month and day are given without a year, infer the year from the semester context
+  * DOUBLE-CHECK every date you output — an incorrect date is worse than a missing item
 - end_date is only for multi-day events, otherwise null
 - You MUST capture EVERY numbered assignment, homework, quiz, exam, paper, project, presentation, lab, discussion post, reading, and any item with a due date or deadline — do NOT skip any
-- SKIP ONLY these non-academic dates: holidays (MLK Day, Thanksgiving, Labor Day, etc.), university closures, spring/fall break, recesses, and "no class" days
-- Also skip purely administrative dates (registration, add/drop, withdrawal) that have no student deliverable
+- SKIP ONLY: holidays, university closures, break days, "no class" days, and purely administrative dates (registration, add/drop, withdrawal) with no student deliverable
 - If semester dates aren't explicit, estimate from the first and last assignment dates with 1 week padding
 - short_name should be a brief identifier (e.g. "MATH 118", "ECON 357", "Writing")
+- If the input is a Google Sheets export, CSV, or calendar file, each row or event is typically one item — extract them all
+- If column headers indicate dates, map each cell value to its correct date column
 - When in doubt about whether something is an assignment, INCLUDE it — it is far better to include too many items than to miss one
 - Output ONLY the JSON object, nothing else`;
 
@@ -235,13 +249,46 @@ app.post('/api/upload-syllabus', authMiddleware, upload.array('files', 10), asyn
             fileErrors.push(`${file.originalname}: Could not read PDF — try uploading screenshots instead.`);
           }
         }
-      } else if (file.mimetype === 'text/plain') {
+      } else if (file.mimetype === 'text/plain' || file.mimetype === 'text/calendar' ||
+                 file.originalname.endsWith('.ics') || file.originalname.endsWith('.txt')) {
         const text = file.buffer.toString('utf-8');
         if (text.trim().length < 20) {
           fileErrors.push(`${file.originalname}: File appears empty or too short.`);
         } else {
-          textPrompt += `\n--- ${file.originalname} ---\n${text}\n`;
+          const label = (file.mimetype === 'text/calendar' || file.originalname.endsWith('.ics'))
+            ? `${file.originalname} (iCalendar export)` : file.originalname;
+          textPrompt += `\n--- ${label} ---\n${text}\n`;
           hasContent = true;
+        }
+      } else if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+        const text = file.buffer.toString('utf-8');
+        if (text.trim().length < 20) {
+          fileErrors.push(`${file.originalname}: CSV appears empty.`);
+        } else {
+          textPrompt += `\n--- ${file.originalname} (CSV spreadsheet) ---\n${text}\n`;
+          hasContent = true;
+        }
+      } else if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                 file.mimetype === 'application/vnd.ms-excel' ||
+                 file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls')) {
+        try {
+          const workbook = XLSX.read(file.buffer, { type: 'buffer', cellDates: true });
+          let sheetText = '';
+          for (const name of workbook.SheetNames) {
+            const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[name]);
+            if (csv.trim().length > 0) {
+              sheetText += `\n[Sheet: ${name}]\n${csv}\n`;
+            }
+          }
+          if (sheetText.trim().length < 20) {
+            fileErrors.push(`${file.originalname}: Spreadsheet appears empty.`);
+          } else {
+            textPrompt += `\n--- ${file.originalname} (Google Sheets / Excel spreadsheet) ---\n${sheetText}\n`;
+            hasContent = true;
+          }
+        } catch (xlErr) {
+          console.error(`XLSX parse error for ${file.originalname}:`, xlErr.message);
+          fileErrors.push(`${file.originalname}: Could not read spreadsheet — ${xlErr.message}`);
         }
       } else if (file.mimetype.startsWith('image/')) {
         const base64 = file.buffer.toString('base64');

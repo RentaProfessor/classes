@@ -1530,19 +1530,19 @@ body {
     margin-bottom: 16px;
   }
   .top-bar-left { text-align: center; }
-  .logo { font-size: 1.5rem; }
-  .subtitle { font-size: 0.9rem; }
+  .logo { font-size: 1.6rem; }
+  .subtitle { font-size: 0.95rem; }
   .top-bar-right {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
     width: 100%;
   }
-  .date-display { text-align: center; font-size: 0.95rem; }
+  .date-display { text-align: center; font-size: 1.05rem; font-weight: 500; }
   .semester-progress { justify-content: center; }
-  .progress-bar-container { width: 140px; height: 8px; }
-  .progress-label { font-size: 0.82rem; }
-  .progress-pct { font-size: 0.88rem; }
+  .progress-bar-container { width: 160px; height: 8px; }
+  .progress-label { font-size: 0.88rem; }
+  .progress-pct { font-size: 0.95rem; }
   .user-menu {
     display: grid;
     grid-template-columns: 1fr 1fr;

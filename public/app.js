@@ -730,7 +730,7 @@
           const c = getColor(e.classId);
           const cls = CLASSES[e.classId] || { short: '?' };
           const timeStr = e.dueTime ? ' @ ' + formatTime(e.dueTime) : '';
-          return `<div class="cal-event" data-aid="${e.id}" style="background:rgba(${c.rgb},0.08);color:${c.hex};border-left:2px solid ${c.hex};cursor:pointer" title="${cls.short}: ${e.title}${timeStr}">${esc(e.title)}${e.dueTime ? '<span class="cal-event-time">' + formatTime(e.dueTime) + '</span>' : ''}</div>`;
+          return `<div class="cal-event" data-aid="${e.id}" style="background:rgba(${c.rgb},0.08);color:${c.hex};border-left:2px solid ${c.hex};cursor:pointer" title="${cls.short}: ${e.title}${timeStr}"><span class="cal-event-label">${esc(e.title)}</span><span class="cal-event-detail">${cls.short}: ${esc(e.title)}${e.dueTime ? ' · ' + formatTime(e.dueTime) : ''}</span>${e.dueTime ? '<span class="cal-event-time">' + formatTime(e.dueTime) + '</span>' : ''}</div>`;
         }).join('')}
       </div>`;
     }
@@ -745,6 +745,17 @@
     document.getElementById('calNext').addEventListener('click', () => {
       calMonth++; if (calMonth > 11) { calMonth = 0; calYear++; }
       renderCalendar(container);
+    });
+
+    container.querySelectorAll('.cal-day:not(.empty)').forEach(day => {
+      day.addEventListener('click', (e) => {
+        if (e.target.closest('.cal-event')) return;
+        const wasExpanded = day.classList.contains('expanded');
+        container.querySelectorAll('.cal-day.expanded').forEach(d => d.classList.remove('expanded'));
+        if (!wasExpanded && day.querySelectorAll('.cal-event').length > 0) {
+          day.classList.add('expanded');
+        }
+      });
     });
   }
 

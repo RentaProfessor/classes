@@ -1,6 +1,9 @@
 (function () {
   'use strict';
 
+  const savedTheme = localStorage.getItem('syllaboard-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+
   const COLOR_PALETTE = [
     { hex: '#a78bfa', rgb: '167,139,250' },
     { hex: '#34d399', rgb: '52,211,153' },
@@ -21,7 +24,7 @@
   let userName = '';
   let activeFilter = 'all';
   let activeType = 'all';
-  let activeView = 'timeline';
+  let activeView = localStorage.getItem('syllaboard-default-view') || 'timeline';
   let calMonth = TODAY.getMonth();
   let calYear = TODAY.getFullYear();
   let showPast = false;
@@ -293,7 +296,9 @@
           </div>
           <div class="user-menu">
             <span class="user-name">${esc(userName)}</span>
+            <button class="btn-ghost btn-sm" id="addSyllabusBtn">+ Add Syllabuses</button>
             <button class="btn-ghost btn-sm" id="newUploadBtn">New Semester</button>
+            <button class="btn-ghost btn-sm btn-icon" id="settingsBtn" title="Settings">⚙</button>
             <button class="btn-ghost btn-sm" id="logoutDashBtn">Log Out</button>
           </div>
         </div>
@@ -313,13 +318,13 @@
           </div>
         </div>
         <div class="view-toggle">
-          <button class="view-btn active" data-view="timeline" title="Timeline View">
+          <button class="view-btn ${activeView === 'timeline' ? 'active' : ''}" data-view="timeline" title="Timeline View">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
-          <button class="view-btn" data-view="calendar" title="Calendar View">
+          <button class="view-btn ${activeView === 'calendar' ? 'active' : ''}" data-view="calendar" title="Calendar View">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           </button>
-          <button class="view-btn" data-view="byclass" title="By Class">
+          <button class="view-btn ${activeView === 'byclass' ? 'active' : ''}" data-view="byclass" title="By Class">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
           </button>
         </div>
@@ -349,6 +354,14 @@
         await fetch(`/api/semester/${dashData.semester.id}`, { method: 'DELETE' });
       }
       window.location.reload();
+    });
+
+    document.getElementById('addSyllabusBtn').addEventListener('click', () => {
+      renderAddSyllabusModal();
+    });
+
+    document.getElementById('settingsBtn').addEventListener('click', () => {
+      renderSettingsModal();
     });
   }
 
@@ -511,13 +524,11 @@
             ${a.endDate ? `<span style="font-size:0.7rem;color:var(--text-dim)">→ ${parseDate(a.endDate).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>` : ''}
           </div>
         </div>
-        ${isPast
-          ? `<button class="tl-check ${a.completed ? 'checked' : ''}" data-id="${a.id}" title="Mark complete"></button>`
-          : `<div class="tl-countdown">
+        <button class="tl-check ${a.completed ? 'checked' : ''}" data-id="${a.id}" title="Mark complete"></button>
+        ${!isPast ? `<div class="tl-countdown">
               <div class="tl-countdown-num ${countdownClass(days)}">${isToday ? 'Today' : days + 'd'}</div>
               <div class="tl-countdown-label">${isToday ? '⚡' : 'remaining'}</div>
-            </div>`
-        }
+            </div>` : ''}
       </div>`;
   }
 
@@ -746,6 +757,265 @@
     const el = document.createElement('span');
     el.textContent = s;
     return el.innerHTML;
+  }
+
+  // ======================== ADD SYLLABUS MODAL ========================
+
+  function renderAddSyllabusModal() {
+    const existing = document.getElementById('addSyllabusModal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay open';
+    modal.id = 'addSyllabusModal';
+    modal.innerHTML = `
+      <div class="modal-card modal-lg">
+        <button class="modal-close" id="closeAddModal">&times;</button>
+        <div class="upload-hero" style="margin-bottom:24px">
+          <h2 style="font-size:1.3rem">Add More Syllabuses</h2>
+          <p>Upload additional syllabus files to add to your current schedule.</p>
+        </div>
+
+        <div class="upload-zone" id="addUploadZone">
+          <div class="upload-zone-content">
+            <div class="upload-icon">📄</div>
+            <p class="upload-zone-text">Drag & drop PDF or text files here</p>
+            <p class="upload-zone-sub">or <button type="button" class="browse-link" id="addBrowseBtn">browse files</button> — up to 10 files</p>
+          </div>
+          <input type="file" id="addFileInput" multiple accept=".pdf,.txt" style="display:none" />
+        </div>
+
+        <div class="file-list" id="addFileList"></div>
+
+        <button class="btn-primary upload-submit" id="addUploadBtn" disabled>
+          <span id="addUploadBtnText">Upload & Parse Syllabuses</span>
+        </button>
+
+        <div class="upload-status" id="addUploadStatus"></div>
+
+        <div id="addReviewSection" style="display:none">
+          <div class="review-header">
+            <h3>Review Extracted Schedule</h3>
+            <p>These items will be added to your current dashboard.</p>
+          </div>
+          <div class="review-content" id="addReviewContent"></div>
+          <div class="review-actions">
+            <button class="btn-ghost" id="addReuploadBtn">Re-upload</button>
+            <button class="btn-primary" id="addSaveBtn">Add to Dashboard</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const zone = document.getElementById('addUploadZone');
+    const fileInput = document.getElementById('addFileInput');
+    const fileList = document.getElementById('addFileList');
+    const uploadBtn = document.getElementById('addUploadBtn');
+    let selectedFiles = [];
+
+    document.getElementById('closeAddModal').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+    document.getElementById('addBrowseBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
+
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      addFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
+
+    function addFiles(files) {
+      for (const f of files) selectedFiles.push(f);
+      renderList();
+    }
+
+    function renderList() {
+      fileList.innerHTML = selectedFiles.map((f, i) => `
+        <div class="file-item">
+          <span class="file-item-icon">${f.type.includes('pdf') ? '📄' : '📝'}</span>
+          <span class="file-item-name">${esc(f.name)}</span>
+          <span class="file-item-size">${(f.size / 1024).toFixed(0)} KB</span>
+          <button class="file-item-remove" data-idx="${i}">&times;</button>
+        </div>
+      `).join('');
+      uploadBtn.disabled = selectedFiles.length === 0;
+      fileList.querySelectorAll('.file-item-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectedFiles.splice(parseInt(btn.dataset.idx), 1);
+          renderList();
+        });
+      });
+    }
+
+    uploadBtn.addEventListener('click', async () => {
+      const btnText = document.getElementById('addUploadBtnText');
+      const status = document.getElementById('addUploadStatus');
+      uploadBtn.disabled = true;
+      btnText.textContent = 'Parsing syllabuses with AI...';
+      status.innerHTML = '<div class="status-loading"><div class="loading-spinner small"></div> This usually takes 10–20 seconds</div>';
+
+      const fd = new FormData();
+      selectedFiles.forEach(f => fd.append('files', f));
+
+      try {
+        const r = await fetch('/api/upload-syllabus', { method: 'POST', body: fd });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error);
+        status.innerHTML = '';
+        showAddReview(data.data, modal);
+      } catch (err) {
+        status.innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
+        uploadBtn.disabled = false;
+        btnText.textContent = 'Upload & Parse Syllabuses';
+      }
+    });
+  }
+
+  function showAddReview(data, modal) {
+    const section = document.getElementById('addReviewSection');
+    const content = document.getElementById('addReviewContent');
+    section.style.display = 'block';
+    document.getElementById('addUploadZone').style.display = 'none';
+    document.getElementById('addFileList').style.display = 'none';
+    document.getElementById('addUploadBtn').style.display = 'none';
+
+    let html = '';
+    data.classes.forEach((cls, i) => {
+      const color = COLOR_PALETTE[i % COLOR_PALETTE.length];
+      html += `
+        <div class="review-class">
+          <div class="review-class-header" style="border-left: 3px solid ${color.hex}">
+            <strong>${esc(cls.name)}</strong>
+            <span class="review-class-count">${cls.assignments.length} items</span>
+          </div>
+          <div class="review-assignments">
+            ${cls.assignments.map(a => `
+              <div class="review-assignment">
+                <span class="review-a-date">${a.date}</span>
+                <span class="review-a-title">${esc(a.title)}</span>
+                <span class="tl-badge ${a.type}">${a.type}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    });
+    content.innerHTML = html;
+
+    document.getElementById('addSaveBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('addSaveBtn');
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+      try {
+        const r = await fetch('/api/add-to-schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        const result = await r.json();
+        if (!r.ok) throw new Error(result.error);
+        modal.remove();
+        window.location.reload();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Add to Dashboard';
+        alert('Error: ' + err.message);
+      }
+    });
+
+    document.getElementById('addReuploadBtn').addEventListener('click', () => {
+      modal.remove();
+      renderAddSyllabusModal();
+    });
+  }
+
+  // ======================== SETTINGS MODAL ========================
+
+  function renderSettingsModal() {
+    const existing = document.getElementById('settingsModal');
+    if (existing) existing.remove();
+
+    const currentTheme = localStorage.getItem('syllaboard-theme') || 'dark';
+    const savedView = localStorage.getItem('syllaboard-default-view') || 'timeline';
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay open';
+    modal.id = 'settingsModal';
+    modal.innerHTML = `
+      <div class="modal-card" style="max-width:480px">
+        <button class="modal-close" id="closeSettingsBtn">&times;</button>
+        <h3 class="settings-title">Settings</h3>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Appearance</div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <div class="setting-name">Theme</div>
+              <div class="setting-desc">Switch between dark and light mode</div>
+            </div>
+            <div class="theme-switch">
+              <button class="theme-option ${currentTheme === 'dark' ? 'active' : ''}" data-theme="dark">🌙 Dark</button>
+              <button class="theme-option ${currentTheme === 'light' ? 'active' : ''}" data-theme="light">☀️ Light</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Preferences</div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <div class="setting-name">Default View</div>
+              <div class="setting-desc">Choose your preferred dashboard view</div>
+            </div>
+            <select class="setting-select" id="defaultViewSelect">
+              <option value="timeline" ${savedView === 'timeline' ? 'selected' : ''}>Timeline</option>
+              <option value="calendar" ${savedView === 'calendar' ? 'selected' : ''}>Calendar</option>
+              <option value="byclass" ${savedView === 'byclass' ? 'selected' : ''}>By Class</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Account</div>
+          <div class="setting-row">
+            <div class="setting-label">
+              <div class="setting-name">Signed in as</div>
+              <div class="setting-desc">${esc(userName)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('closeSettingsBtn').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+    modal.querySelectorAll('.theme-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const theme = btn.dataset.theme;
+        localStorage.setItem('syllaboard-theme', theme);
+        document.documentElement.setAttribute('data-theme', theme);
+        modal.querySelectorAll('.theme-option').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    document.getElementById('defaultViewSelect').addEventListener('change', (e) => {
+      localStorage.setItem('syllaboard-default-view', e.target.value);
+      activeView = e.target.value;
+      document.querySelectorAll('.view-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === activeView);
+      });
+      renderMainContent();
+    });
   }
 
 })();

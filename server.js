@@ -289,6 +289,66 @@ app.post('/api/save-schedule', authMiddleware, async (req, res) => {
   }
 });
 
+// ======================== ADD TO EXISTING SCHEDULE ========================
+
+app.post('/api/add-to-schedule', authMiddleware, async (req, res) => {
+  const { classes, semester_start, semester_end } = req.body;
+  if (!classes?.length) return res.status(400).json({ error: 'No classes provided' });
+
+  try {
+    const { data: semesters } = await supabase.from('semesters')
+      .select('*').eq('user_id', req.userId).eq('is_active', true)
+      .order('created_at', { ascending: false }).limit(1);
+
+    if (!semesters?.length) return res.status(404).json({ error: 'No active semester found' });
+    const semester = semesters[0];
+
+    const { data: existingClasses } = await supabase.from('classes')
+      .select('*').eq('semester_id', semester.id);
+    let nextIndex = (existingClasses || []).length;
+
+    for (const cls of classes) {
+      const match = (existingClasses || []).find(ec =>
+        ec.name.toLowerCase().trim() === cls.name.toLowerCase().trim() ||
+        ec.short_name.toLowerCase().trim() === cls.short_name.toLowerCase().trim()
+      );
+
+      let classId;
+      if (match) {
+        classId = match.id;
+      } else {
+        const { data: classRow, error: clsErr } = await supabase.from('classes').insert({
+          semester_id: semester.id, name: cls.name, short_name: cls.short_name,
+          class_key: 'class' + (nextIndex + 1), icon: CLASS_ICONS[nextIndex % CLASS_ICONS.length], color_index: nextIndex % 8
+        }).select().single();
+        if (clsErr) throw clsErr;
+        classId = classRow.id;
+        nextIndex++;
+      }
+
+      const assignments = (cls.assignments || []).map(a => ({
+        class_id: classId, title: a.title, date: a.date, end_date: a.end_date || null, type: a.type || 'due'
+      }));
+      if (assignments.length > 0) {
+        const { error: aErr } = await supabase.from('assignments').insert(assignments);
+        if (aErr) throw aErr;
+      }
+    }
+
+    const updates = {};
+    if (semester_start && semester_start < semester.start_date) updates.start_date = semester_start;
+    if (semester_end && semester_end > semester.end_date) updates.end_date = semester_end;
+    if (Object.keys(updates).length > 0) {
+      await supabase.from('semesters').update(updates).eq('id', semester.id);
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Add to schedule error:', err.message);
+    res.status(500).json({ error: 'Failed to add to schedule' });
+  }
+});
+
 // ======================== DASHBOARD DATA ========================
 
 app.get('/api/dashboard', authMiddleware, async (req, res) => {

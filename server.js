@@ -164,31 +164,71 @@ app.post('/api/upload-syllabus', authMiddleware, upload.array('files', 10), asyn
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   const parts = [{ text: EXTRACTION_PROMPT + '\n\nExtract the class schedule from the following syllabuses:\n' }];
 
+  const fileErrors = [];
   for (const file of req.files) {
     try {
       if (file.mimetype === 'application/pdf') {
         const data = await pdfParse(file.buffer);
-        parts.push({ text: `\n--- ${file.originalname} ---\n${data.text}\n` });
+        if (!data.text || data.text.trim().length < 20) {
+          fileErrors.push(`${file.originalname}: PDF has no extractable text (may be scanned/image-based). Try uploading as an image instead.`);
+        } else {
+          parts.push({ text: `\n--- ${file.originalname} ---\n${data.text}\n` });
+        }
       } else if (file.mimetype === 'text/plain') {
-        parts.push({ text: `\n--- ${file.originalname} ---\n${file.buffer.toString('utf-8')}\n` });
+        const text = file.buffer.toString('utf-8');
+        if (text.trim().length < 20) {
+          fileErrors.push(`${file.originalname}: File appears to be empty or too short.`);
+        } else {
+          parts.push({ text: `\n--- ${file.originalname} ---\n${text}\n` });
+        }
       } else if (file.mimetype.startsWith('image/')) {
         parts.push({ text: `\n--- ${file.originalname} (image) ---\n` });
         parts.push({ inlineData: { mimeType: file.mimetype, data: file.buffer.toString('base64') } });
       }
     } catch (err) {
       console.error(`Error processing ${file.originalname}:`, err.message);
+      fileErrors.push(`${file.originalname}: Failed to read file — ${err.message}`);
     }
   }
 
+  if (fileErrors.length > 0 && fileErrors.length === req.files.length) {
+    return res.status(400).json({ error: `Could not read any files:\n${fileErrors.join('\n')}` });
+  }
+
+  const textParts = parts.filter(p => p.text);
+  const hasContent = textParts.some(p => p.text && !p.text.startsWith('You extract') && p.text.includes('---'));
+  if (!hasContent && !parts.some(p => p.inlineData)) {
+    return res.status(400).json({ error: 'Could not extract any text from the uploaded files. Try a different file format.' });
+  }
+
+  let raw;
   try {
     const result = await model.generateContent(parts);
-    const raw = result.response.text();
-    const cleaned = raw.replace(/```(?:json)?\s*/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
+    raw = result.response.text();
+  } catch (err) {
+    console.error('Gemini API error:', err.message);
+    const msg = err.message?.includes('API key') ? 'Gemini API key is invalid or expired.'
+      : err.message?.includes('quota') || err.message?.includes('429') ? 'Gemini rate limit hit — wait a minute and try again.'
+      : `AI service error: ${err.message}`;
+    return res.status(502).json({ error: msg });
+  }
+
+  try {
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('Gemini returned no JSON object. Raw response:', raw.slice(0, 500));
+      return res.status(502).json({ error: 'AI did not return valid schedule data. Try uploading clearer files.' });
+    }
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    if (!parsed.semester_name || !parsed.classes || !Array.isArray(parsed.classes) || parsed.classes.length === 0) {
+      console.error('Parsed JSON missing required fields:', JSON.stringify(parsed).slice(0, 500));
+      return res.status(422).json({ error: 'AI could not find any classes or dates in your files. Make sure your syllabuses contain a schedule or list of assignments.' });
+    }
     res.json({ ok: true, data: parsed });
   } catch (err) {
-    console.error('Gemini parse error:', err.message);
-    res.status(500).json({ error: 'Failed to parse syllabus. Make sure files contain readable schedule info.' });
+    console.error('JSON parse error:', err.message, '| Raw (first 500 chars):', raw?.slice(0, 500));
+    res.status(502).json({ error: 'AI returned malformed data. Try re-uploading — results can vary between attempts.' });
   }
 });
 

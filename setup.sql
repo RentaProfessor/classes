@@ -1,5 +1,5 @@
 -- Run this ONCE in your Supabase Dashboard → SQL Editor
--- This creates all tables needed for SyllaBoard
+-- This creates all tables needed for AssignDash
 
 CREATE TABLE IF NOT EXISTS semesters (
   id BIGSERIAL PRIMARY KEY,

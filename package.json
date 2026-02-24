@@ -1,5 +1,5 @@
 {
-  "name": "syllaboard",
+  "name": "assigndash",
   "version": "1.0.0",
   "description": "Upload your syllabuses, get a beautiful assignment dashboard",
   "main": "server.js",

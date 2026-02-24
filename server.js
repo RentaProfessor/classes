@@ -724,5 +724,5 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`SyllaBoard running at http://localhost:${PORT}`);
+  console.log(`AssignDash running at http://localhost:${PORT}`);
 });

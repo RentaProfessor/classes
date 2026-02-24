@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: syllaboard
+    name: assigndash
     runtime: node
     buildCommand: npm install
     startCommand: node server.js

@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const savedTheme = localStorage.getItem('syllaboard-theme') || 'dark';
+  const savedTheme = localStorage.getItem('assigndash-theme') || 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
 
   const COLOR_PALETTE = [
@@ -24,7 +24,7 @@
   let userName = '';
   let activeFilter = 'all';
   let activeType = 'all';
-  let activeView = localStorage.getItem('syllaboard-default-view') || 'timeline';
+  let activeView = localStorage.getItem('assigndash-default-view') || 'timeline';
   let calMonth = TODAY.getMonth();
   let calYear = TODAY.getFullYear();
   let showPast = false;
@@ -118,7 +118,7 @@
     app.innerHTML = `
       <div class="upload-page">
         <header class="upload-header">
-          <h1 class="logo">📚 <span class="gradient-text">SyllaBoard</span></h1>
+          <h1 class="logo">📚 <span class="gradient-text">AssignDash</span></h1>
           <div class="upload-header-right">
             <span class="upload-greeting">Hey, ${esc(userName)}</span>
             <button class="btn-ghost" id="logoutBtn">Log Out</button>
@@ -1444,7 +1444,7 @@
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(22);
     doc.setTextColor(255, 255, 255);
-    doc.text('SyllaBoard', margin, 20);
+    doc.text('AssignDash', margin, 20);
 
     doc.setFontSize(12);
     doc.setTextColor(167, 139, 250);
@@ -1574,7 +1574,7 @@
       doc.setPage(i);
       doc.setFontSize(7);
       doc.setTextColor(150, 150, 170);
-      doc.text('SyllaBoard — Assignment Dashboard', margin, pageHeight - 8);
+      doc.text('AssignDash — Assignment Dashboard', margin, pageHeight - 8);
       doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
     }
 
@@ -1588,8 +1588,8 @@
     const existing = document.getElementById('settingsModal');
     if (existing) existing.remove();
 
-    const currentTheme = localStorage.getItem('syllaboard-theme') || 'dark';
-    const savedView = localStorage.getItem('syllaboard-default-view') || 'timeline';
+    const currentTheme = localStorage.getItem('assigndash-theme') || 'dark';
+    const savedView = localStorage.getItem('assigndash-default-view') || 'timeline';
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay open';
@@ -1660,7 +1660,7 @@
     modal.querySelectorAll('.theme-option').forEach(btn => {
       btn.addEventListener('click', () => {
         const theme = btn.dataset.theme;
-        localStorage.setItem('syllaboard-theme', theme);
+        localStorage.setItem('assigndash-theme', theme);
         document.documentElement.setAttribute('data-theme', theme);
         modal.querySelectorAll('.theme-option').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
@@ -1668,7 +1668,7 @@
     });
 
     document.getElementById('defaultViewSelect').addEventListener('change', (e) => {
-      localStorage.setItem('syllaboard-default-view', e.target.value);
+      localStorage.setItem('assigndash-default-view', e.target.value);
       activeView = e.target.value;
       document.querySelectorAll('.view-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.view === activeView);

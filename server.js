@@ -19,7 +19,7 @@ async function callOpenAI(content) {
       'Authorization': `Bearer ${key}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-4.1',
       messages: [{ role: 'user', content }],
       max_tokens: 16384,
       temperature: 0.2,
@@ -537,6 +537,25 @@ app.delete('/api/assignment/:id', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('Delete assignment error:', err.message);
     res.status(500).json({ error: 'Failed to delete assignment' });
+  }
+});
+
+// ======================== CLASS (SYLLABUS) DELETE ========================
+
+app.delete('/api/class/:id', authMiddleware, async (req, res) => {
+  try {
+    const { data: cls } = await supabase.from('classes')
+      .select('id, semester_id, semesters!inner(user_id)')
+      .eq('id', req.params.id).single();
+    if (!cls || cls.semesters.user_id !== req.userId) return res.status(404).json({ error: 'Not found' });
+
+    await supabase.from('assignments').delete().eq('class_id', req.params.id);
+    await supabase.from('classes').delete().eq('id', req.params.id);
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Delete class error:', err.message);
+    res.status(500).json({ error: 'Failed to delete class' });
   }
 });
 

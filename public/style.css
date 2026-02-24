@@ -1462,6 +1462,25 @@ body {
 .tl-content[data-aid]:hover { background: rgba(108,99,255,0.06); border-radius: 8px; }
 .class-item-info[data-aid]:hover { background: rgba(108,99,255,0.06); border-radius: 6px; }
 
+/* ========== MANAGE CLASSES ========== */
+.manage-class-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.03);
+  margin-bottom: 6px;
+}
+.manage-class-name {
+  font-weight: 500;
+  font-size: 0.92rem;
+}
+.btn-danger.btn-sm {
+  padding: 6px 14px;
+  font-size: 0.78rem;
+}
+
 /* ========== ANIMATIONS ========== */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

@@ -65,8 +65,21 @@
   }
 
   function parseDate(str) {
-    const [y, m, d] = str.split('-').map(Number);
-    return new Date(y, m - 1, d);
+    if (!str || typeof str !== 'string') return new Date(NaN);
+    const parts = str.trim().split('-').map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return new Date(NaN);
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+
+  const TYPE_PRIORITY = { exam: 0, quiz: 1, due: 2, conference: 3, workshop: 4, prep: 5 };
+
+  function compareAssignments(a, b) {
+    const da = parseDate(a.date), db = parseDate(b.date);
+    const ta = da.getTime() || 0, tb = db.getTime() || 0;
+    if (ta !== tb) return ta - tb;
+    const pa = TYPE_PRIORITY[a.type] ?? 9, pb = TYPE_PRIORITY[b.type] ?? 9;
+    if (pa !== pb) return pa - pb;
+    return (a.title || '').localeCompare(b.title || '');
   }
 
   function daysBetween(a, b) { return Math.round((b - a) / 86400000); }
@@ -284,7 +297,7 @@
 
     data.classes.forEach((cls, i) => {
       const color = COLOR_PALETTE[i % COLOR_PALETTE.length];
-      const sorted = [...cls.assignments].sort((a, b) => a.date.localeCompare(b.date));
+      const sorted = [...cls.assignments].sort(compareAssignments);
       html += `
         <div class="review-class">
           <div class="review-class-header" style="border-left: 3px solid ${color.hex}">
@@ -470,7 +483,7 @@
     let list = [...ASSIGNMENTS];
     if (activeFilter !== 'all') list = list.filter(a => a.classId === activeFilter);
     if (activeType !== 'all') list = list.filter(a => a.type === activeType);
-    return list.sort((a, b) => parseDate(a.date) - parseDate(b.date));
+    return list.sort(compareAssignments);
   }
 
   function renderStats() {
@@ -508,7 +521,7 @@
     const upcoming = pool
       .filter(a => parseDate(a.date) >= TODAY)
       .filter(a => activeType !== 'all' || a.type === 'exam' || a.type === 'due')
-      .sort((a, b) => parseDate(a.date) - parseDate(b.date));
+      .sort(compareAssignments);
 
     const next = upcoming[0];
     const el = document.getElementById('upcomingSpotlight');
@@ -742,7 +755,7 @@
       const c = getColor(cid);
       let allItems = ASSIGNMENTS.filter(a => a.classId === cid);
       if (activeType !== 'all') allItems = allItems.filter(a => a.type === activeType);
-      allItems.sort((a, b) => parseDate(a.date) - parseDate(b.date));
+      allItems.sort(compareAssignments);
       const upcomingItems = allItems.filter(a => parseDate(a.date) >= TODAY);
       const pastItems = allItems.filter(a => parseDate(a.date) < TODAY);
 
@@ -1287,7 +1300,7 @@
     let html = '';
     data.classes.forEach((cls, i) => {
       const color = COLOR_PALETTE[i % COLOR_PALETTE.length];
-      const sorted = [...cls.assignments].sort((a, b) => a.date.localeCompare(b.date));
+      const sorted = [...cls.assignments].sort(compareAssignments);
       html += `
         <div class="review-class">
           <div class="review-class-header" style="border-left: 3px solid ${color.hex}">
@@ -1390,7 +1403,7 @@
 
     y = 52;
 
-    const allAssignments = [...ASSIGNMENTS].sort((a, b) => parseDate(a.date) - parseDate(b.date));
+    const allAssignments = [...ASSIGNMENTS].sort(compareAssignments);
     const upcoming = allAssignments.filter(a => parseDate(a.date) >= TODAY);
     const completed = allAssignments.filter(a => a.completed);
 
@@ -1428,17 +1441,19 @@
 
       y += 13;
 
-      const tableData = classAssignments.map(a => {
+      const sortedClassAssignments = [...classAssignments].sort(compareAssignments);
+      const tableData = sortedClassAssignments.map(a => {
         const d = parseDate(a.date);
-        const days = daysBetween(TODAY, d);
+        const days = isNaN(d.getTime()) ? -999 : daysBetween(TODAY, d);
         let status;
         if (a.completed) status = '✓ Done';
+        else if (days === -999) status = '—';
         else if (days < 0) status = 'Past';
         else if (days === 0) status = 'Today';
         else status = days + 'd left';
 
         return [
-          d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          isNaN(d.getTime()) ? a.date : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           a.title,
           a.type.charAt(0).toUpperCase() + a.type.slice(1),
           status
@@ -1555,6 +1570,19 @@
         </div>
 
         <div class="settings-section">
+          <div class="settings-section-title">Manage Classes</div>
+          <div class="setting-desc" style="margin-bottom:10px">Remove a class and all its assignments from your dashboard.</div>
+          <div id="manageClassList">
+            ${Object.entries(CLASSES).map(([key, cls]) => `
+              <div class="manage-class-row" data-class-key="${key}" data-class-dbid="${cls.dbId}">
+                <span class="manage-class-name">${cls.icon} ${esc(cls.name)}</span>
+                <button class="btn-danger btn-sm delete-class-btn" data-dbid="${cls.dbId}" data-key="${key}">Remove</button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <div class="settings-section">
           <div class="settings-section-title">Account</div>
           <div class="setting-row">
             <div class="setting-label">
@@ -1587,6 +1615,41 @@
         b.classList.toggle('active', b.dataset.view === activeView);
       });
       renderMainContent();
+    });
+
+    modal.querySelectorAll('.delete-class-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const dbId = btn.dataset.dbid;
+        const key = btn.dataset.key;
+        const cls = CLASSES[key];
+        if (!cls) return;
+        if (!confirm(`Remove "${cls.name}" and all its assignments?`)) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Removing...';
+        try {
+          const r = await fetch(`/api/class/${dbId}`, { method: 'DELETE' });
+          const result = await r.json();
+          if (!r.ok) throw new Error(result.error);
+
+          ASSIGNMENTS = ASSIGNMENTS.filter(a => a.classId !== key);
+          delete CLASSES[key];
+
+          const row = btn.closest('.manage-class-row');
+          if (row) row.remove();
+
+          renderFilterTabs();
+          refreshDashboard();
+
+          if (Object.keys(CLASSES).length === 0) {
+            document.getElementById('manageClassList').innerHTML = '<div class="setting-desc">No classes remaining.</div>';
+          }
+        } catch (err) {
+          btn.disabled = false;
+          btn.textContent = 'Remove';
+          alert('Error: ' + err.message);
+        }
+      });
     });
   }
 

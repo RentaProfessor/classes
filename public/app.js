@@ -187,23 +187,18 @@
       const status = document.getElementById('uploadStatus');
       uploadBtn.disabled = true;
       btnText.textContent = 'Parsing syllabuses with AI...';
-      status.innerHTML = '<div class="status-loading"><div class="loading-spinner small"></div> This usually takes 10–20 seconds</div>';
 
-      const fd = new FormData();
-      selectedFiles.forEach(f => fd.append('files', f));
+      const result = await parseFilesWithProgress(selectedFiles, status);
 
-      try {
-        const r = await fetch('/api/upload-syllabus', { method: 'POST', body: fd });
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error);
-
-        status.innerHTML = '';
-        showReview(data.data, selectedFiles);
-      } catch (err) {
-        status.innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
+      if (result.error) {
+        status.innerHTML = `<div class="status-error">${esc(result.error)}</div>`;
         uploadBtn.disabled = false;
         btnText.textContent = 'Upload & Parse Syllabuses';
+        return;
       }
+
+      status.innerHTML = '';
+      showReview(result.data, selectedFiles);
     });
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -276,22 +271,19 @@
       btn.disabled = true;
       saveBtn.disabled = true;
       btn.textContent = 'Reprocessing...';
-      document.getElementById('reviewContent').innerHTML = '<div class="status-loading" style="padding:32px 0"><div class="loading-spinner small"></div> Re-parsing with AI... this takes 10–20 seconds</div>';
 
-      const fd = new FormData();
-      files.forEach(f => fd.append('files', f));
+      const progressContainer = document.getElementById('reviewContent');
+      const result = await parseFilesWithProgress(files, progressContainer);
 
-      try {
-        const r = await fetch('/api/upload-syllabus', { method: 'POST', body: fd });
-        const result = await r.json();
-        if (!r.ok) throw new Error(result.error);
-        showReview(result.data, files);
-      } catch (err) {
-        document.getElementById('reviewContent').innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
+      if (result.error) {
+        progressContainer.innerHTML = `<div class="status-error">${esc(result.error)}</div>`;
         btn.disabled = false;
         saveBtn.disabled = false;
         btn.textContent = 'Reprocess';
+        return;
       }
+
+      showReview(result.data, files);
     });
   }
 
@@ -784,6 +776,93 @@
     return el.innerHTML;
   }
 
+  // ======================== PER-FILE PARSING WITH PROGRESS ========================
+
+  function buildProgressHTML(files, fileResults) {
+    const total = files.length;
+    const done = fileResults.filter(r => r && (r.status === 'done' || r.status === 'error')).length;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+    let html = `<div class="parse-progress">
+      <div class="parse-progress-header">
+        <span>${done === total ? 'Processing complete' : 'Processing syllabuses...'}</span>
+        <span class="parse-progress-count">${done} of ${total}</span>
+      </div>
+      <div class="parse-progress-bar">
+        <div class="parse-progress-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="parse-progress-files">`;
+
+    for (let i = 0; i < files.length; i++) {
+      const r = fileResults[i];
+      const name = esc(files[i].name);
+      if (!r) {
+        html += `<div class="parse-file pending"><span class="parse-file-icon">○</span> ${name}</div>`;
+      } else if (r.status === 'processing') {
+        html += `<div class="parse-file active"><div class="loading-spinner tiny"></div> ${name}</div>`;
+      } else if (r.status === 'done') {
+        html += `<div class="parse-file done"><span class="parse-file-icon">✓</span> ${name}<span class="parse-file-detail">${r.classes} class${r.classes !== 1 ? 'es' : ''}, ${r.assignments} item${r.assignments !== 1 ? 's' : ''}</span></div>`;
+      } else if (r.status === 'error') {
+        html += `<div class="parse-file error"><span class="parse-file-icon">✕</span> ${name}<span class="parse-file-detail">${esc(r.message)}</span></div>`;
+      }
+    }
+
+    html += '</div></div>';
+    return html;
+  }
+
+  async function parseFilesWithProgress(files, statusEl) {
+    const fileResults = new Array(files.length);
+    let allClasses = [];
+    let semesterData = null;
+
+    statusEl.innerHTML = buildProgressHTML(files, fileResults);
+
+    for (let i = 0; i < files.length; i++) {
+      fileResults[i] = { status: 'processing' };
+      statusEl.innerHTML = buildProgressHTML(files, fileResults);
+
+      const fd = new FormData();
+      fd.append('files', files[i]);
+
+      try {
+        const r = await fetch('/api/upload-syllabus', { method: 'POST', body: fd });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error);
+
+        const classes = data.data.classes || [];
+        const totalItems = classes.reduce((sum, c) => sum + (c.assignments?.length || 0), 0);
+
+        if (!semesterData) {
+          semesterData = {
+            semester_name: data.data.semester_name,
+            semester_start: data.data.semester_start,
+            semester_end: data.data.semester_end,
+          };
+        } else {
+          if (data.data.semester_start < semesterData.semester_start)
+            semesterData.semester_start = data.data.semester_start;
+          if (data.data.semester_end > semesterData.semester_end)
+            semesterData.semester_end = data.data.semester_end;
+        }
+
+        allClasses.push(...classes);
+        fileResults[i] = { status: 'done', classes: classes.length, assignments: totalItems };
+      } catch (err) {
+        fileResults[i] = { status: 'error', message: err.message };
+      }
+
+      statusEl.innerHTML = buildProgressHTML(files, fileResults);
+    }
+
+    if (allClasses.length === 0) {
+      const errorMsgs = fileResults.filter(r => r.status === 'error').map(r => r.message);
+      return { error: 'Could not extract any classes from the uploaded files.' + (errorMsgs.length ? ' ' + errorMsgs.join(' ') : '') };
+    }
+
+    return { data: { ...semesterData, classes: allClasses } };
+  }
+
   // ======================== ADD SYLLABUS MODAL ========================
 
   function renderAddSyllabusModal() {
@@ -884,22 +963,18 @@
       const status = document.getElementById('addUploadStatus');
       uploadBtn.disabled = true;
       btnText.textContent = 'Parsing syllabuses with AI...';
-      status.innerHTML = '<div class="status-loading"><div class="loading-spinner small"></div> This usually takes 10–20 seconds</div>';
 
-      const fd = new FormData();
-      selectedFiles.forEach(f => fd.append('files', f));
+      const result = await parseFilesWithProgress(selectedFiles, status);
 
-      try {
-        const r = await fetch('/api/upload-syllabus', { method: 'POST', body: fd });
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error);
-        status.innerHTML = '';
-        showAddReview(data.data, modal, selectedFiles);
-      } catch (err) {
-        status.innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
+      if (result.error) {
+        status.innerHTML = `<div class="status-error">${esc(result.error)}</div>`;
         uploadBtn.disabled = false;
         btnText.textContent = 'Upload & Parse Syllabuses';
+        return;
       }
+
+      status.innerHTML = '';
+      showAddReview(result.data, modal, selectedFiles);
     });
   }
 
@@ -961,22 +1036,19 @@
       btn.disabled = true;
       saveBtn.disabled = true;
       btn.textContent = 'Reprocessing...';
-      document.getElementById('addReviewContent').innerHTML = '<div class="status-loading" style="padding:32px 0"><div class="loading-spinner small"></div> Re-parsing with AI... this takes 10–20 seconds</div>';
 
-      const fd = new FormData();
-      files.forEach(f => fd.append('files', f));
+      const progressContainer = document.getElementById('addReviewContent');
+      const result = await parseFilesWithProgress(files, progressContainer);
 
-      try {
-        const r = await fetch('/api/upload-syllabus', { method: 'POST', body: fd });
-        const result = await r.json();
-        if (!r.ok) throw new Error(result.error);
-        showAddReview(result.data, modal, files);
-      } catch (err) {
-        document.getElementById('addReviewContent').innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
+      if (result.error) {
+        progressContainer.innerHTML = `<div class="status-error">${esc(result.error)}</div>`;
         btn.disabled = false;
         saveBtn.disabled = false;
         btn.textContent = 'Reprocess';
+        return;
       }
+
+      showAddReview(result.data, modal, files);
     });
   }
 

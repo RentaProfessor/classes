@@ -1283,6 +1283,94 @@ body {
   line-height: 1;
 }
 
+/* ========== PARSE PROGRESS ========== */
+.parse-progress {
+  text-align: left;
+  padding: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.parse-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.parse-progress-count {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.parse-progress-bar {
+  height: 6px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.parse-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #a78bfa, #60a5fa);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.parse-progress-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.parse-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.parse-file.pending { color: var(--text-dim); }
+
+.parse-file.active {
+  color: var(--text);
+  background: rgba(96, 165, 250, 0.06);
+}
+
+.parse-file.done { color: var(--success); }
+.parse-file.error { color: var(--danger); }
+
+.parse-file-icon {
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.parse-file-detail {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.parse-file.done .parse-file-detail { color: var(--success); opacity: 0.7; }
+.parse-file.error .parse-file-detail { color: var(--danger); opacity: 0.8; }
+
+.loading-spinner.tiny {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+  flex-shrink: 0;
+}
+
 /* ========== ANIMATIONS ========== */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

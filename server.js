@@ -21,7 +21,7 @@ async function callOpenAI(prompt) {
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 4096,
+      max_tokens: 16384,
       temperature: 0.2,
     }),
   });

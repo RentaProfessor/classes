@@ -8,7 +8,7 @@ const { createClient } = require('@supabase/supabase-js');
 const pdfParse = require('pdf-parse');
 const crypto = require('crypto');
 
-async function callOpenAI(prompt) {
+async function callOpenAI(content) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY is not set.');
 
@@ -20,7 +20,7 @@ async function callOpenAI(prompt) {
     },
     body: JSON.stringify({
       model: 'gpt-4.1-mini',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content }],
       max_tokens: 16384,
       temperature: 0.2,
     }),
@@ -35,9 +35,9 @@ async function callOpenAI(prompt) {
   }
 
   const data = await res.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('OpenAI returned an empty response.');
-  return content;
+  const reply = data.choices?.[0]?.message?.content;
+  if (!reply) throw new Error('OpenAI returned an empty response.');
+  return reply;
 }
 
 const app = express();
@@ -192,27 +192,65 @@ app.post('/api/upload-syllabus', authMiddleware, upload.array('files', 10), asyn
     return res.status(400).json({ error: 'No files uploaded' });
   }
 
-  let prompt = EXTRACTION_PROMPT + '\n\nExtract the class schedule from the following syllabuses:\n';
+  let textPrompt = EXTRACTION_PROMPT + '\n\nExtract the class schedule from the following syllabuses:\n';
+  const imageParts = [];
   const fileErrors = [];
+  let hasContent = false;
 
   for (const file of req.files) {
     try {
       if (file.mimetype === 'application/pdf') {
-        const data = await pdfParse(file.buffer);
-        if (!data.text || data.text.trim().length < 20) {
-          fileErrors.push(`${file.originalname}: PDF has no extractable text (may be scanned). Try a text-based PDF.`);
-        } else {
-          prompt += `\n--- ${file.originalname} ---\n${data.text}\n`;
+        let gotText = false;
+        try {
+          const data = await pdfParse(file.buffer);
+          if (data.text && data.text.trim().length >= 50) {
+            textPrompt += `\n--- ${file.originalname} ---\n${data.text}\n`;
+            gotText = true;
+            hasContent = true;
+          }
+        } catch (e) { /* pdf-parse failed, try image fallback */ }
+
+        if (!gotText) {
+          try {
+            const { pdf } = await import('pdf-to-img');
+            const doc = await pdf(file.buffer, { scale: 2.0 });
+            let pageNum = 0;
+            for await (const image of doc) {
+              if (pageNum >= 15) break;
+              const base64 = Buffer.from(image).toString('base64');
+              imageParts.push({
+                type: 'image_url',
+                image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' }
+              });
+              pageNum++;
+            }
+            if (pageNum > 0) {
+              textPrompt += `\n--- ${file.originalname} (scanned PDF, ${pageNum} page images included) ---\n`;
+              hasContent = true;
+            } else {
+              fileErrors.push(`${file.originalname}: PDF appears empty.`);
+            }
+          } catch (renderErr) {
+            console.error(`PDF render error for ${file.originalname}:`, renderErr.message);
+            fileErrors.push(`${file.originalname}: Could not read PDF — try uploading screenshots instead.`);
+          }
         }
       } else if (file.mimetype === 'text/plain') {
         const text = file.buffer.toString('utf-8');
         if (text.trim().length < 20) {
           fileErrors.push(`${file.originalname}: File appears empty or too short.`);
         } else {
-          prompt += `\n--- ${file.originalname} ---\n${text}\n`;
+          textPrompt += `\n--- ${file.originalname} ---\n${text}\n`;
+          hasContent = true;
         }
       } else if (file.mimetype.startsWith('image/')) {
-        fileErrors.push(`${file.originalname}: Image files not supported — upload the PDF version instead.`);
+        const base64 = file.buffer.toString('base64');
+        imageParts.push({
+          type: 'image_url',
+          image_url: { url: `data:${file.mimetype};base64,${base64}`, detail: 'high' }
+        });
+        textPrompt += `\n--- ${file.originalname} (image included) ---\n`;
+        hasContent = true;
       }
     } catch (err) {
       console.error(`Error processing ${file.originalname}:`, err.message);
@@ -220,13 +258,17 @@ app.post('/api/upload-syllabus', authMiddleware, upload.array('files', 10), asyn
     }
   }
 
-  if (fileErrors.length === req.files.length) {
+  if (!hasContent) {
     return res.status(400).json({ error: `Could not read any files:\n${fileErrors.join('\n')}` });
   }
 
+  const apiContent = imageParts.length > 0
+    ? [{ type: 'text', text: textPrompt }, ...imageParts]
+    : textPrompt;
+
   let raw;
   try {
-    raw = await callOpenAI(prompt);
+    raw = await callOpenAI(apiContent);
   } catch (err) {
     console.error('OpenAI error:', err.message);
     return res.status(502).json({ error: err.message });

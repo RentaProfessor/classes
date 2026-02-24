@@ -111,7 +111,7 @@
         <div class="upload-zone" id="uploadZone">
           <div class="upload-zone-content">
             <div class="upload-icon">📄</div>
-            <p class="upload-zone-text">Drag & drop PDF or text files here</p>
+            <p class="upload-zone-text">Drag & drop PDFs, images, or text files here</p>
             <p class="upload-zone-sub">or <button type="button" class="browse-link" id="browseBtn">browse files</button> — up to 10 files</p>
           </div>
           <input type="file" id="fileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" />
@@ -224,14 +224,15 @@
 
     data.classes.forEach((cls, i) => {
       const color = COLOR_PALETTE[i % COLOR_PALETTE.length];
+      const sorted = [...cls.assignments].sort((a, b) => a.date.localeCompare(b.date));
       html += `
         <div class="review-class">
           <div class="review-class-header" style="border-left: 3px solid ${color.hex}">
             <strong>${esc(cls.name)}</strong>
-            <span class="review-class-count">${cls.assignments.length} items</span>
+            <span class="review-class-count">${sorted.length} items</span>
           </div>
           <div class="review-assignments">
-            ${cls.assignments.map(a => `
+            ${sorted.map(a => `
               <div class="review-assignment">
                 <span class="review-a-date">${a.date}</span>
                 <span class="review-a-title">${esc(a.title)}</span>
@@ -778,33 +779,19 @@
 
   // ======================== PER-FILE PARSING WITH PROGRESS ========================
 
-  function buildProgressHTML(files, fileResults) {
-    const total = files.length;
-    const done = fileResults.filter(r => r && (r.status === 'done' || r.status === 'error')).length;
-    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-
+  function buildProgressHTML(files) {
     let html = `<div class="parse-progress">
       <div class="parse-progress-header">
-        <span>${done === total ? 'Processing complete' : 'Processing syllabuses...'}</span>
-        <span class="parse-progress-count">${done} of ${total}</span>
+        <span class="parse-progress-header-text">Processing syllabuses...</span>
+        <span class="parse-progress-count">0 of ${files.length}</span>
       </div>
       <div class="parse-progress-bar">
-        <div class="parse-progress-fill" style="width:${pct}%"></div>
+        <div class="parse-progress-fill" style="width:0%"></div>
       </div>
       <div class="parse-progress-files">`;
 
     for (let i = 0; i < files.length; i++) {
-      const r = fileResults[i];
-      const name = esc(files[i].name);
-      if (!r) {
-        html += `<div class="parse-file pending"><span class="parse-file-icon">○</span> ${name}</div>`;
-      } else if (r.status === 'processing') {
-        html += `<div class="parse-file active"><div class="loading-spinner tiny"></div> ${name}</div>`;
-      } else if (r.status === 'done') {
-        html += `<div class="parse-file done"><span class="parse-file-icon">✓</span> ${name}<span class="parse-file-detail">${r.classes} class${r.classes !== 1 ? 'es' : ''}, ${r.assignments} item${r.assignments !== 1 ? 's' : ''}</span></div>`;
-      } else if (r.status === 'error') {
-        html += `<div class="parse-file error"><span class="parse-file-icon">✕</span> ${name}<span class="parse-file-detail">${esc(r.message)}</span></div>`;
-      }
+      html += `<div class="parse-file pending" data-file="${i}"><span class="parse-file-icon">○</span> ${esc(files[i].name)}</div>`;
     }
 
     html += '</div></div>';
@@ -812,15 +799,37 @@
   }
 
   async function parseFilesWithProgress(files, statusEl) {
-    const fileResults = new Array(files.length);
+    const total = files.length;
+    let completedFiles = 0;
     let allClasses = [];
     let semesterData = null;
+    const fileResults = [];
 
-    statusEl.innerHTML = buildProgressHTML(files, fileResults);
+    statusEl.innerHTML = buildProgressHTML(files);
+
+    const progressFill = statusEl.querySelector('.parse-progress-fill');
+    const progressCount = statusEl.querySelector('.parse-progress-count');
+    const headerText = statusEl.querySelector('.parse-progress-header-text');
+    let smoothInterval = null;
 
     for (let i = 0; i < files.length; i++) {
-      fileResults[i] = { status: 'processing' };
-      statusEl.innerHTML = buildProgressHTML(files, fileResults);
+      const fileEl = statusEl.querySelector(`[data-file="${i}"]`);
+      if (fileEl) {
+        fileEl.className = 'parse-file active';
+        fileEl.innerHTML = `<div class="loading-spinner tiny"></div> ${esc(files[i].name)}`;
+      }
+
+      const segStart = (completedFiles / total) * 100;
+      const segEnd = ((completedFiles + 1) / total) * 100;
+      const startTime = Date.now();
+      const estMs = 15000;
+
+      smoothInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / estMs, 0.92);
+        const pct = segStart + (segEnd - segStart) * progress;
+        if (progressFill) progressFill.style.width = pct + '%';
+      }, 300);
 
       const fd = new FormData();
       fd.append('files', files[i]);
@@ -847,13 +856,30 @@
         }
 
         allClasses.push(...classes);
-        fileResults[i] = { status: 'done', classes: classes.length, assignments: totalItems };
+        completedFiles++;
+        fileResults.push({ status: 'done' });
+
+        if (fileEl) {
+          fileEl.className = 'parse-file done';
+          fileEl.innerHTML = `<span class="parse-file-icon">✓</span> ${esc(files[i].name)}<span class="parse-file-detail">${classes.length} class${classes.length !== 1 ? 'es' : ''}, ${totalItems} item${totalItems !== 1 ? 's' : ''}</span>`;
+        }
       } catch (err) {
-        fileResults[i] = { status: 'error', message: err.message };
+        completedFiles++;
+        fileResults.push({ status: 'error', message: err.message });
+
+        if (fileEl) {
+          fileEl.className = 'parse-file error';
+          fileEl.innerHTML = `<span class="parse-file-icon">✕</span> ${esc(files[i].name)}<span class="parse-file-detail">${esc(err.message)}</span>`;
+        }
       }
 
-      statusEl.innerHTML = buildProgressHTML(files, fileResults);
+      clearInterval(smoothInterval);
+      const actualPct = Math.round((completedFiles / total) * 100);
+      if (progressFill) progressFill.style.width = actualPct + '%';
+      if (progressCount) progressCount.textContent = `${completedFiles} of ${total}`;
     }
+
+    if (headerText) headerText.textContent = 'Processing complete';
 
     if (allClasses.length === 0) {
       const errorMsgs = fileResults.filter(r => r.status === 'error').map(r => r.message);
@@ -883,10 +909,10 @@
         <div class="upload-zone" id="addUploadZone">
           <div class="upload-zone-content">
             <div class="upload-icon">📄</div>
-            <p class="upload-zone-text">Drag & drop PDF or text files here</p>
+            <p class="upload-zone-text">Drag & drop PDFs, images, or text files here</p>
             <p class="upload-zone-sub">or <button type="button" class="browse-link" id="addBrowseBtn">browse files</button> — up to 10 files</p>
           </div>
-          <input type="file" id="addFileInput" multiple accept=".pdf,.txt" style="display:none" />
+          <input type="file" id="addFileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" />
         </div>
 
         <div class="file-list" id="addFileList"></div>
@@ -989,14 +1015,15 @@
     let html = '';
     data.classes.forEach((cls, i) => {
       const color = COLOR_PALETTE[i % COLOR_PALETTE.length];
+      const sorted = [...cls.assignments].sort((a, b) => a.date.localeCompare(b.date));
       html += `
         <div class="review-class">
           <div class="review-class-header" style="border-left: 3px solid ${color.hex}">
             <strong>${esc(cls.name)}</strong>
-            <span class="review-class-count">${cls.assignments.length} items</span>
+            <span class="review-class-count">${sorted.length} items</span>
           </div>
           <div class="review-assignments">
-            ${cls.assignments.map(a => `
+            ${sorted.map(a => `
               <div class="review-assignment">
                 <span class="review-a-date">${a.date}</span>
                 <span class="review-a-title">${esc(a.title)}</span>

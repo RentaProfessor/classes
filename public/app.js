@@ -296,6 +296,7 @@
           </div>
           <div class="user-menu">
             <span class="user-name">${esc(userName)}</span>
+            <button class="btn-ghost btn-sm" id="exportPdfBtn" title="Export PDF">📥 Export</button>
             <button class="btn-ghost btn-sm" id="addSyllabusBtn">+ Add Syllabuses</button>
             <button class="btn-ghost btn-sm" id="newUploadBtn">New Semester</button>
             <button class="btn-ghost btn-sm btn-icon" id="settingsBtn" title="Settings">⚙</button>
@@ -362,6 +363,10 @@
 
     document.getElementById('settingsBtn').addEventListener('click', () => {
       renderSettingsModal();
+    });
+
+    document.getElementById('exportPdfBtn').addEventListener('click', () => {
+      exportPDF();
     });
   }
 
@@ -934,6 +939,163 @@
       modal.remove();
       renderAddSyllabusModal();
     });
+  }
+
+  // ======================== EXPORT PDF ========================
+
+  function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 16;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 0;
+
+    doc.setFillColor(26, 26, 46);
+    doc.rect(0, 0, pageWidth, 42, 'F');
+
+    const gradientColors = [[167, 139, 250], [96, 165, 250], [52, 211, 153]];
+    const segW = pageWidth / gradientColors.length;
+    gradientColors.forEach((c, i) => {
+      doc.setFillColor(...c);
+      doc.rect(i * segW, 42, segW, 1.5, 'F');
+    });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.setTextColor(255, 255, 255);
+    doc.text('SyllaBoard', margin, 20);
+
+    doc.setFontSize(12);
+    doc.setTextColor(167, 139, 250);
+    doc.text(SEMESTER_NAME, margin, 32);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(136, 136, 160);
+    const startStr = SEMESTER_START.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const endStr = SEMESTER_END.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    doc.text(`${startStr}  —  ${endStr}`, pageWidth - margin, 32, { align: 'right' });
+
+    y = 52;
+
+    const allAssignments = [...ASSIGNMENTS].sort((a, b) => parseDate(a.date) - parseDate(b.date));
+    const upcoming = allAssignments.filter(a => parseDate(a.date) >= TODAY);
+    const completed = allAssignments.filter(a => a.completed);
+
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 120);
+    doc.text(
+      `Total: ${allAssignments.length}   |   Upcoming: ${upcoming.length}   |   Completed: ${completed.length}   |   Generated: ${new Date().toLocaleDateString('en-US')}`,
+      margin, y
+    );
+    y += 10;
+
+    const classIds = Object.keys(CLASSES);
+    classIds.forEach(cid => {
+      const cls = CLASSES[cid];
+      const c = getColor(cid);
+      const classAssignments = allAssignments.filter(a => a.classId === cid);
+      if (classAssignments.length === 0) return;
+
+      if (y > pageHeight - 40) {
+        doc.addPage();
+        y = margin;
+      }
+
+      const [r, g, b] = c.rgb.split(',').map(Number);
+      doc.setFillColor(r, g, b);
+      doc.roundedRect(margin, y, contentWidth, 9, 1.5, 1.5, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`${cls.icon}  ${cls.name}`, margin + 4, y + 6.2);
+
+      doc.setFontSize(8);
+      doc.text(`${classAssignments.length} items`, pageWidth - margin - 4, y + 6.2, { align: 'right' });
+
+      y += 13;
+
+      const tableData = classAssignments.map(a => {
+        const d = parseDate(a.date);
+        const days = daysBetween(TODAY, d);
+        let status;
+        if (a.completed) status = '✓ Done';
+        else if (days < 0) status = 'Past';
+        else if (days === 0) status = 'Today';
+        else status = days + 'd left';
+
+        return [
+          d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          a.title,
+          a.type.charAt(0).toUpperCase() + a.type.slice(1),
+          status
+        ];
+      });
+
+      doc.autoTable({
+        startY: y,
+        margin: { left: margin, right: margin },
+        head: [['Date', 'Title', 'Type', 'Status']],
+        body: tableData,
+        theme: 'plain',
+        styles: {
+          fontSize: 8.5,
+          cellPadding: { top: 2.8, bottom: 2.8, left: 3, right: 3 },
+          textColor: [60, 60, 80],
+          lineColor: [220, 220, 230],
+          lineWidth: 0.2,
+          font: 'helvetica',
+        },
+        headStyles: {
+          fillColor: [245, 245, 248],
+          textColor: [80, 80, 100],
+          fontStyle: 'bold',
+          fontSize: 7.5,
+        },
+        columnStyles: {
+          0: { cellWidth: 34 },
+          2: { cellWidth: 24 },
+          3: { cellWidth: 22 },
+        },
+        alternateRowStyles: {
+          fillColor: [250, 250, 253],
+        },
+        didParseCell: function(data) {
+          if (data.section === 'body' && data.column.index === 3) {
+            const val = data.cell.raw;
+            if (val === '✓ Done') data.cell.styles.textColor = [52, 211, 153];
+            else if (val === 'Today') data.cell.styles.textColor = [248, 113, 113];
+            else if (val === 'Past') data.cell.styles.textColor = [160, 160, 180];
+            else data.cell.styles.textColor = [251, 191, 36];
+          }
+          if (data.section === 'body' && data.column.index === 2) {
+            const t = data.cell.raw.toLowerCase();
+            if (t === 'exam') data.cell.styles.textColor = [248, 113, 113];
+            else if (t === 'quiz') data.cell.styles.textColor = [96, 165, 250];
+            else if (t === 'due') data.cell.styles.textColor = [251, 191, 36];
+            else if (t === 'conference') data.cell.styles.textColor = [167, 139, 250];
+            else if (t === 'workshop') data.cell.styles.textColor = [52, 211, 153];
+          }
+        }
+      });
+
+      y = doc.lastAutoTable.finalY + 10;
+    });
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setTextColor(150, 150, 170);
+      doc.text('SyllaBoard — Assignment Dashboard', margin, pageHeight - 8);
+      doc.text(`Page ${i} of ${pageCount}`, pageWidth - margin, pageHeight - 8, { align: 'right' });
+    }
+
+    const filename = SEMESTER_NAME.replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/\s+/g, '_');
+    doc.save(`${filename}_Schedule.pdf`);
   }
 
   // ======================== SETTINGS MODAL ========================

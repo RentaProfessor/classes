@@ -314,12 +314,11 @@ body {
   border-radius: var(--radius);
   padding: 48px 24px;
   text-align: center;
-  cursor: pointer;
   transition: var(--transition);
   margin-bottom: 16px;
 }
 
-.upload-zone:hover, .upload-zone.drag-over {
+.upload-zone.drag-over {
   border-color: #60a5fa;
   background: rgba(96, 165, 250, 0.04);
 }
@@ -338,6 +337,20 @@ body {
 .upload-zone-sub {
   font-size: 0.82rem;
   color: var(--text-dim);
+}
+
+.browse-link {
+  background: none;
+  border: none;
+  color: #a78bfa;
+  font-size: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+.browse-link:hover {
+  color: #c4b5fd;
 }
 
 .file-list {

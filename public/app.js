@@ -108,8 +108,8 @@
         <div class="upload-zone" id="uploadZone">
           <div class="upload-zone-content">
             <div class="upload-icon">📄</div>
-            <p class="upload-zone-text">Drag & drop PDF or image files here</p>
-            <p class="upload-zone-sub">or click to browse — up to 10 files</p>
+            <p class="upload-zone-text">Drag & drop PDF or text files here</p>
+            <p class="upload-zone-sub">or <button type="button" class="browse-link" id="browseBtn">browse files</button> — up to 10 files</p>
           </div>
           <input type="file" id="fileInput" multiple accept=".pdf,.txt,.png,.jpg,.jpeg,.webp" style="display:none" />
         </div>
@@ -143,7 +143,10 @@
     const uploadBtn = document.getElementById('uploadBtn');
     let selectedFiles = [];
 
-    zone.addEventListener('click', () => fileInput.click());
+    document.getElementById('browseBtn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
     zone.addEventListener('drop', e => {

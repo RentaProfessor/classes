@@ -1397,13 +1397,13 @@ body {
   display: flex;
   gap: 0;
   margin-bottom: 20px;
-  border-bottom: 2px solid rgba(255,255,255,0.06);
+  border-bottom: 2px solid var(--border);
 }
 .input-tab {
   padding: 10px 24px;
   background: none;
   border: none;
-  color: rgba(255,255,255,0.45);
+  color: var(--text-dim);
   font-size: 0.92rem;
   font-weight: 600;
   cursor: pointer;
@@ -1411,9 +1411,9 @@ body {
   margin-bottom: -2px;
   transition: color 0.2s, border-color 0.2s;
 }
-.input-tab:hover { color: rgba(255,255,255,0.7); }
+.input-tab:hover { color: var(--text-muted); }
 .input-tab.active {
-  color: #fff;
+  color: var(--text);
   border-bottom-color: #6C63FF;
 }
 
@@ -1752,7 +1752,8 @@ body {
   .upload-zone-text { font-size: 0.88rem; }
   .upload-zone-sub { font-size: 0.78rem; }
   .paste-textarea { min-height: 160px; padding: 14px; font-size: 0.88rem; }
-  .input-tab { padding: 8px 16px; font-size: 0.85rem; }
+  .input-tabs { margin-bottom: 16px; }
+  .input-tab { padding: 12px 0; font-size: 0.92rem; flex: 1; text-align: center; }
   .review-assignment { flex-wrap: wrap; gap: 6px; }
   .review-a-date { min-width: auto; }
   .review-a-title { min-width: 100%; order: 3; }

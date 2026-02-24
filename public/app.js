@@ -498,21 +498,14 @@
 
   function renderStats() {
     const filtered = getFilteredAssignments();
-    const upcoming = filtered.filter(a => parseDate(a.date) >= TODAY);
-    const past = filtered.filter(a => parseDate(a.date) < TODAY);
+    const upcoming = filtered.filter(a => parseDate(a.date) >= TODAY && !a.completed);
+    const past = filtered.filter(a => parseDate(a.date) < TODAY || a.completed);
     const exams = upcoming.filter(a => a.type === 'exam');
-    const nextUp = upcoming[0];
-    const daysToNext = nextUp ? daysBetween(TODAY, parseDate(nextUp.date)) : null;
 
     const cards = [
       { icon: '📋', bg: 'rgba(96,165,250,0.1)', value: upcoming.length, label: 'Upcoming' },
       { icon: '✅', bg: 'rgba(52,211,153,0.1)', value: past.length, label: 'Past Events' },
       { icon: '📝', bg: 'rgba(248,113,113,0.1)', value: exams.length, label: 'Exams Left' },
-      {
-        icon: '⏳', bg: 'rgba(251,191,36,0.1)',
-        value: daysToNext !== null ? daysToNext + 'd' : '—',
-        label: daysToNext !== null ? `Until ${CLASSES[nextUp.classId]?.short || 'Next'}` : 'All done!'
-      },
     ];
 
     document.getElementById('statsRow').innerHTML = cards.map(c => `
@@ -529,7 +522,7 @@
   function renderSpotlight() {
     let pool = getFilteredAssignments();
     const upcoming = pool
-      .filter(a => parseDate(a.date) >= TODAY)
+      .filter(a => parseDate(a.date) >= TODAY && !a.completed)
       .filter(a => activeType !== 'all' || a.type === 'exam' || a.type === 'due')
       .sort(compareAssignments);
 
@@ -646,8 +639,8 @@
       container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-text">No assignments for this filter</div></div>';
       return;
     }
-    const upcomingItems = items.filter(a => parseDate(a.date) >= TODAY);
-    const pastItems = items.filter(a => parseDate(a.date) < TODAY);
+    const upcomingItems = items.filter(a => parseDate(a.date) >= TODAY && !a.completed);
+    const pastItems = items.filter(a => parseDate(a.date) < TODAY || a.completed);
     let html = '<div class="timeline">';
 
     if (pastItems.length > 0) {
@@ -768,8 +761,8 @@
       let allItems = ASSIGNMENTS.filter(a => a.classId === cid);
       if (activeType !== 'all') allItems = allItems.filter(a => a.type === activeType);
       allItems.sort(compareAssignments);
-      const upcomingItems = allItems.filter(a => parseDate(a.date) >= TODAY);
-      const pastItems = allItems.filter(a => parseDate(a.date) < TODAY);
+      const upcomingItems = allItems.filter(a => parseDate(a.date) >= TODAY && !a.completed);
+      const pastItems = allItems.filter(a => parseDate(a.date) < TODAY || a.completed);
 
       html += `
         <div class="class-card">
@@ -847,10 +840,7 @@
         const assignment = ASSIGNMENTS.find(a => a.id === id);
         if (!assignment) return;
         assignment.completed = !assignment.completed;
-        btn.classList.toggle('checked');
-        const item = btn.closest('.timeline-item') || btn.closest('.class-item');
-        if (item) item.classList.toggle('completed');
-        renderStats();
+        refreshDashboard();
         try {
           await fetch('/api/toggle-complete', {
             method: 'POST',

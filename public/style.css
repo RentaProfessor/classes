@@ -75,6 +75,7 @@ body {
   min-height: 100vh;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .gradient-text {
@@ -720,7 +721,7 @@ body {
 /* ========== STATS ROW ========== */
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-bottom: 24px;
 }
@@ -1515,34 +1516,211 @@ body {
 /* ========== RESPONSIVE ========== */
 @media (max-width: 768px) {
   html, body { overflow-x: hidden; max-width: 100vw; }
-  #app { padding: 16px 12px 40px; }
-  .top-bar { flex-direction: column; align-items: flex-start; }
-  .top-bar-right { flex-direction: column; align-items: flex-start; gap: 12px; width: 100%; }
-  .user-menu { width: 100%; flex-wrap: wrap; }
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-  .filter-section { flex-direction: column; align-items: flex-start; }
+  html { font-size: 14px; }
+  #app { padding: 12px 14px 32px; }
+
+  /* Top bar */
+  .top-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px 0 20px;
+    margin-bottom: 16px;
+  }
+  .top-bar-left { text-align: center; }
+  .logo { font-size: 1.3rem; }
+  .subtitle { font-size: 0.78rem; }
+  .top-bar-right {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+  }
+  .date-display { text-align: center; font-size: 0.82rem; }
+  .semester-progress { justify-content: center; }
+  .progress-bar-container { width: 100px; }
+  .user-menu {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+  }
+  .user-menu .user-name {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding-bottom: 4px;
+  }
+  .user-menu .btn-ghost,
+  .user-menu .btn-primary {
+    width: 100%;
+    text-align: center;
+    padding: 8px 6px;
+    font-size: 0.75rem;
+  }
+  .user-menu .btn-icon {
+    grid-column: span 1;
+  }
+
+  /* Stats */
+  .stats-row {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .stat-card { padding: 12px 10px; gap: 8px; }
+  .stat-icon { width: 32px; height: 32px; font-size: 1rem; border-radius: 6px; }
+  .stat-value { font-size: 1.2rem; }
+  .stat-label { font-size: 0.68rem; }
+
+  /* Filters */
+  .filter-section {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .filter-rows { gap: 6px; }
+  .filter-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .filter-tabs::-webkit-scrollbar { display: none; }
+  .filter-tab {
+    padding: 7px 14px;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+  }
+  .type-filters {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .type-filters::-webkit-scrollbar { display: none; }
+  .type-tab { flex-shrink: 0; }
+  .view-toggle { align-self: flex-end; }
+
+  /* Spotlight */
+  .upcoming-spotlight { margin-bottom: 16px; }
+  .spotlight-card { padding: 16px; }
+  .spotlight-title { font-size: 1rem; }
+  .countdown-number { font-size: 1.5rem; }
+  .spotlight-label { font-size: 0.68rem; }
+
+  /* Timeline */
+  .timeline-item { gap: 10px; padding: 12px 0; }
+  .tl-date { width: 42px; }
+  .tl-date-day { font-size: 1.05rem; }
+  .tl-date-weekday { font-size: 0.62rem; }
+  .tl-dot-container { width: 14px; }
+  .tl-dot { width: 8px; height: 8px; }
+  .tl-title { font-size: 0.85rem; }
+  .tl-class { font-size: 0.72rem; }
+  .tl-badge { font-size: 0.62rem; padding: 1px 6px; }
+  .tl-countdown { min-width: 42px; }
+  .tl-countdown-num { font-size: 0.82rem; }
+  .tl-countdown-label { font-size: 0.6rem; }
+  .tl-check { width: 18px; height: 18px; min-width: 18px; }
+  .month-header { font-size: 0.72rem; padding: 10px 0 6px; }
+
+  /* Calendar */
   .calendar-grid { font-size: 0.72rem; gap: 1px; }
-  .cal-header { padding: 6px 2px; font-size: 0.65rem; letter-spacing: 0; }
+  .cal-header { padding: 6px 2px; font-size: 0.62rem; letter-spacing: 0; }
   .cal-day { min-height: 48px; padding: 3px; }
-  .cal-day-num { font-size: 0.7rem; margin-bottom: 2px; }
-  .cal-event { font-size: 0; padding: 0; margin-bottom: 2px; height: 5px; border-radius: 3px; border-left-width: 0; min-width: 0; width: 100%; }
+  .cal-day-num { font-size: 0.68rem; margin-bottom: 2px; }
+  .cal-event {
+    font-size: 0;
+    padding: 0;
+    margin-bottom: 2px;
+    height: 5px;
+    border-radius: 3px;
+    border-left-width: 0;
+    min-width: 0;
+    width: 100%;
+  }
   .cal-nav { gap: 10px; }
   .cal-nav-btn { padding: 6px 10px; font-size: 0.75rem; }
   .cal-month-label { font-size: 0.95rem; min-width: 140px; }
-  .tl-date { width: 50px; }
-  .tl-date-day { font-size: 1.1rem; }
-  .tl-countdown { min-width: 48px; }
-  .class-grid { grid-template-columns: 1fr; }
-  .spotlight-card { padding: 18px 20px; }
-  .countdown-number { font-size: 1.6rem; }
-  .hero-title { font-size: 2.2rem; }
-  .hero-sub { font-size: 1rem; }
+
+  /* By Class */
+  .class-grid { grid-template-columns: 1fr; gap: 12px; }
+  .class-card-header { padding: 14px 16px 10px; }
+  .class-card-name { font-size: 0.92rem; }
+  .class-item { padding: 8px 14px; gap: 8px; }
+  .class-item-title { font-size: 0.78rem; }
+  .class-item-date { font-size: 0.68rem; }
+  .class-item-badge { font-size: 0.6rem; padding: 1px 6px; }
+
+  /* Past events */
+  .past-toggle-btn { padding: 10px 12px; font-size: 0.8rem; }
+
+  /* Modals */
+  .modal-overlay { padding: 12px; align-items: flex-start; padding-top: 40px; }
+  .modal-card {
+    padding: 20px 16px;
+    max-width: 100%;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+  }
+  .modal-lg {
+    max-width: 100%;
+    max-height: calc(100vh - 80px);
+  }
+  .settings-title { font-size: 1.1rem; margin-bottom: 16px; }
+  .setting-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .theme-switch { width: 100%; }
+  .theme-option { flex: 1; text-align: center; padding: 8px 10px; font-size: 0.78rem; }
+  .setting-select { width: 100%; }
+  .form-row-2 { grid-template-columns: 1fr; }
+  .asg-modal-actions { flex-direction: column-reverse; }
+  .asg-modal-actions .btn-danger { width: 100%; }
+  .asg-modal-actions .btn-primary { width: 100%; }
+
+  /* Upload page */
+  .upload-page { padding: 16px 14px 40px; }
+  .upload-header { flex-direction: column; align-items: center; gap: 10px; padding: 16px 0 20px; }
+  .upload-hero h2 { font-size: 1.3rem; }
+  .upload-hero p { font-size: 0.88rem; }
+  .upload-zone { padding: 32px 16px; }
+  .upload-icon { font-size: 2rem; }
+  .upload-zone-text { font-size: 0.88rem; }
+  .upload-zone-sub { font-size: 0.78rem; }
+  .paste-textarea { min-height: 160px; padding: 14px; font-size: 0.88rem; }
+  .input-tab { padding: 8px 16px; font-size: 0.85rem; }
+  .review-assignment { flex-wrap: wrap; gap: 6px; }
+  .review-a-date { min-width: auto; }
+  .review-a-title { min-width: 100%; order: 3; }
+  .review-actions { flex-direction: column; }
+  .review-actions .btn-ghost,
+  .review-actions .btn-primary { flex: none; width: 100%; text-align: center; }
+
+  /* Hero / Landing */
+  .hero { padding: 24px 16px; }
+  .hero-title { font-size: 2rem; }
+  .hero-sub { font-size: 0.92rem; }
+  .hero-cta { padding: 14px 32px; font-size: 0.95rem; }
+  .hero-features { gap: 10px; }
+
+  /* Manage classes in settings */
+  .manage-class-row { padding: 8px 10px; }
+  .manage-class-name { font-size: 0.85rem; }
 }
 
-@media (max-width: 480px) {
-  .stats-row { grid-template-columns: 1fr; }
-  .filter-tabs { gap: 4px; }
-  .filter-tab { padding: 6px 12px; font-size: 0.75rem; }
-  .cal-day { min-height: 40px; padding: 2px; }
-  .cal-event { height: 4px; margin-bottom: 1px; }
+@media (max-width: 380px) {
+  #app { padding: 10px 10px 28px; }
+  .stats-row { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .stat-card { flex-direction: column; text-align: center; gap: 4px; padding: 10px 6px; }
+  .stat-icon { width: 28px; height: 28px; font-size: 0.9rem; }
+  .stat-value { font-size: 1.1rem; }
+  .stat-label { font-size: 0.62rem; }
+  .filter-tab { padding: 5px 10px; font-size: 0.72rem; }
+  .tl-date { width: 36px; }
+  .tl-date-day { font-size: 0.95rem; }
+  .timeline-item { gap: 8px; }
+  .cal-day { min-height: 36px; }
+  .cal-event { height: 3px; }
+  .user-menu { grid-template-columns: 1fr 1fr; gap: 4px; }
 }

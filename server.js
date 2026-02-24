@@ -311,8 +311,7 @@ app.post('/api/add-to-schedule', authMiddleware, async (req, res) => {
 
     for (const cls of classes) {
       const match = (existingClasses || []).find(ec =>
-        ec.name.toLowerCase().trim() === cls.name.toLowerCase().trim() ||
-        ec.short_name.toLowerCase().trim() === cls.short_name.toLowerCase().trim()
+        ec.name.toLowerCase().trim() === cls.name.toLowerCase().trim()
       );
 
       let classId;

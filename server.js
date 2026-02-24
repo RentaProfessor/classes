@@ -41,6 +41,55 @@ async function callOpenAI(content) {
   return reply;
 }
 
+async function callOpenAIWithFiles(textContent, files) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error('OPENAI_API_KEY is not set.');
+
+  const content = [{ type: 'input_text', text: textContent }];
+
+  for (const f of files) {
+    if (f.mime === 'application/pdf') {
+      content.push({
+        type: 'input_file',
+        filename: f.filename,
+        file_data: `data:application/pdf;base64,${f.base64}`,
+      });
+    } else if (f.mime.startsWith('image/')) {
+      content.push({
+        type: 'input_image',
+        image_url: `data:${f.mime};base64,${f.base64}`,
+      });
+    }
+  }
+
+  const res = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4.1',
+      input: [{ role: 'user', content }],
+      max_output_tokens: 16384,
+      temperature: 0.2,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    if (res.status === 401) throw new Error('Invalid OpenAI API key.');
+    if (res.status === 429) throw new Error('OpenAI rate limit — try again in a moment.');
+    if (res.status === 402 || body.includes('insufficient_quota')) throw new Error('OpenAI account has no credits. Add funds at platform.openai.com/account/billing');
+    throw new Error(`OpenAI error ${res.status}: ${body.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const reply = data.output_text || data.output?.[0]?.content?.[0]?.text;
+  if (!reply) throw new Error('OpenAI returned an empty response.');
+  return reply;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
@@ -208,6 +257,7 @@ app.post('/api/upload-syllabus', authMiddleware, upload.array('files', 10), asyn
 
   let textPrompt = EXTRACTION_PROMPT + '\n\nExtract the class schedule from the following syllabuses:\n';
   const imageParts = [];
+  const pdfFiles = [];
   const fileErrors = [];
   let hasContent = false;
 
@@ -222,32 +272,13 @@ app.post('/api/upload-syllabus', authMiddleware, upload.array('files', 10), asyn
             gotText = true;
             hasContent = true;
           }
-        } catch (e) { /* pdf-parse failed, try image fallback */ }
+        } catch (e) { /* pdf-parse failed, send raw PDF to OpenAI */ }
 
         if (!gotText) {
-          try {
-            const { pdf } = await import('pdf-to-img');
-            const doc = await pdf(file.buffer, { scale: 2.0 });
-            let pageNum = 0;
-            for await (const image of doc) {
-              if (pageNum >= 15) break;
-              const base64 = Buffer.from(image).toString('base64');
-              imageParts.push({
-                type: 'image_url',
-                image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' }
-              });
-              pageNum++;
-            }
-            if (pageNum > 0) {
-              textPrompt += `\n--- ${file.originalname} (scanned PDF, ${pageNum} page images included) ---\n`;
-              hasContent = true;
-            } else {
-              fileErrors.push(`${file.originalname}: PDF appears empty.`);
-            }
-          } catch (renderErr) {
-            console.error(`PDF render error for ${file.originalname}:`, renderErr.message);
-            fileErrors.push(`${file.originalname}: Could not read PDF — try uploading screenshots instead.`);
-          }
+          const base64 = file.buffer.toString('base64');
+          pdfFiles.push({ filename: file.originalname, base64, mime: 'application/pdf' });
+          textPrompt += `\n--- ${file.originalname} (PDF file attached for vision processing) ---\n`;
+          hasContent = true;
         }
       } else if (file.mimetype === 'text/plain' || file.mimetype === 'text/calendar' ||
                  file.originalname.endsWith('.ics') || file.originalname.endsWith('.txt')) {
@@ -309,13 +340,23 @@ app.post('/api/upload-syllabus', authMiddleware, upload.array('files', 10), asyn
     return res.status(400).json({ error: `Could not read any files:\n${fileErrors.join('\n')}` });
   }
 
-  const apiContent = imageParts.length > 0
-    ? [{ type: 'text', text: textPrompt }, ...imageParts]
-    : textPrompt;
+  const allFiles = [
+    ...pdfFiles,
+    ...imageParts.map((p, i) => {
+      const url = p.image_url.url;
+      const mime = url.substring(url.indexOf(':') + 1, url.indexOf(';'));
+      const base64 = url.split(',')[1];
+      return { mime, base64, filename: `image_${i}.png` };
+    })
+  ];
 
   let raw;
   try {
-    raw = await callOpenAI(apiContent);
+    if (allFiles.length > 0) {
+      raw = await callOpenAIWithFiles(textPrompt, allFiles);
+    } else {
+      raw = await callOpenAI(textPrompt);
+    }
   } catch (err) {
     console.error('OpenAI error:', err.message);
     return res.status(502).json({ error: err.message });

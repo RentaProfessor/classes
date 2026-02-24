@@ -1528,17 +1528,19 @@ body {
     margin-bottom: 16px;
   }
   .top-bar-left { text-align: center; }
-  .logo { font-size: 1.3rem; }
-  .subtitle { font-size: 0.78rem; }
+  .logo { font-size: 1.5rem; }
+  .subtitle { font-size: 0.9rem; }
   .top-bar-right {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
     width: 100%;
   }
-  .date-display { text-align: center; font-size: 0.82rem; }
+  .date-display { text-align: center; font-size: 0.95rem; }
   .semester-progress { justify-content: center; }
-  .progress-bar-container { width: 100px; }
+  .progress-bar-container { width: 140px; height: 8px; }
+  .progress-label { font-size: 0.82rem; }
+  .progress-pct { font-size: 0.88rem; }
   .user-menu {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1578,29 +1580,41 @@ body {
     align-items: stretch;
     gap: 10px;
     margin-bottom: 16px;
+    overflow: visible;
   }
-  .filter-rows { gap: 6px; }
+  .filter-rows { gap: 6px; width: 100%; overflow: visible; }
   .filter-tabs {
+    display: flex;
     overflow-x: auto;
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    padding-bottom: 2px;
+    padding-bottom: 4px;
+    margin: 0 -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+    width: calc(100% + 28px);
   }
   .filter-tabs::-webkit-scrollbar { display: none; }
   .filter-tab {
     padding: 7px 14px;
     font-size: 0.78rem;
     flex-shrink: 0;
+    white-space: nowrap;
   }
   .type-filters {
+    display: flex;
     overflow-x: auto;
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    margin: 0 -14px;
+    padding-left: 14px;
+    padding-right: 14px;
+    width: calc(100% + 28px);
   }
   .type-filters::-webkit-scrollbar { display: none; }
-  .type-tab { flex-shrink: 0; }
+  .type-tab { flex-shrink: 0; white-space: nowrap; }
   .view-toggle { align-self: flex-end; }
 
   /* Spotlight */
@@ -1716,7 +1730,19 @@ body {
   .stat-icon { width: 28px; height: 28px; font-size: 0.9rem; }
   .stat-value { font-size: 1.1rem; }
   .stat-label { font-size: 0.62rem; }
-  .filter-tab { padding: 5px 10px; font-size: 0.72rem; }
+  .filter-tabs {
+    margin: 0 -10px;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: calc(100% + 20px);
+  }
+  .type-filters {
+    margin: 0 -10px;
+    padding-left: 10px;
+    padding-right: 10px;
+    width: calc(100% + 20px);
+  }
+  .filter-tab { padding: 6px 12px; font-size: 0.75rem; }
   .tl-date { width: 36px; }
   .tl-date-day { font-size: 0.95rem; }
   .timeline-item { gap: 8px; }

@@ -100,10 +100,12 @@ Rules:
 - type must be one of: "exam", "due", "quiz", "conference", "workshop", "prep"
 - Dates MUST be YYYY-MM-DD format
 - end_date is only for multi-day events, otherwise null
-- Include ALL assignments, exams, quizzes, due dates, presentations, and deadlines
+- ONLY include items that require student action: assignments, exams, quizzes, papers, presentations, projects, readings, labs, and deadlines with deliverables
+- Do NOT include holidays (e.g. MLK Day, Thanksgiving, Labor Day), university closures, breaks, recesses, "no class" days, or campus events that are not graded coursework
+- Do NOT include administrative dates like registration deadlines, add/drop dates, or withdrawal deadlines unless the syllabus explicitly frames them as a student deliverable
 - If semester dates aren't explicit, estimate from the first and last assignment dates with 1 week padding
 - short_name should be a brief identifier (e.g. "MATH 118", "ECON 357", "Writing")
-- Be thorough — capture every single date and deadline mentioned
+- Be thorough — capture every assignment and deadline, but skip non-academic calendar dates
 - Output ONLY the JSON object, nothing else`;
 
 // ======================== AUTH (Supabase Auth) ========================

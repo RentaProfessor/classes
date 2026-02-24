@@ -133,7 +133,7 @@
           </div>
           <div class="review-content" id="reviewContent"></div>
           <div class="review-actions">
-            <button class="btn-ghost" id="reuploadBtn">Re-upload</button>
+            <button class="btn-ghost" id="reprocessBtn">Reprocess</button>
             <button class="btn-primary" id="saveBtn">Save & Create Dashboard</button>
           </div>
         </div>
@@ -198,7 +198,7 @@
         if (!r.ok) throw new Error(data.error);
 
         status.innerHTML = '';
-        showReview(data.data);
+        showReview(data.data, selectedFiles);
       } catch (err) {
         status.innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
         uploadBtn.disabled = false;
@@ -212,7 +212,7 @@
     });
   }
 
-  function showReview(data) {
+  function showReview(data, files) {
     const section = document.getElementById('reviewSection');
     const content = document.getElementById('reviewContent');
     section.style.display = 'block';
@@ -270,8 +270,28 @@
       }
     });
 
-    document.getElementById('reuploadBtn').addEventListener('click', () => {
-      window.location.reload();
+    document.getElementById('reprocessBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('reprocessBtn');
+      const saveBtn = document.getElementById('saveBtn');
+      btn.disabled = true;
+      saveBtn.disabled = true;
+      btn.textContent = 'Reprocessing...';
+      document.getElementById('reviewContent').innerHTML = '<div class="status-loading" style="padding:32px 0"><div class="loading-spinner small"></div> Re-parsing with AI... this takes 10–20 seconds</div>';
+
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+
+      try {
+        const r = await fetch('/api/upload-syllabus', { method: 'POST', body: fd });
+        const result = await r.json();
+        if (!r.ok) throw new Error(result.error);
+        showReview(result.data, files);
+      } catch (err) {
+        document.getElementById('reviewContent').innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
+        btn.disabled = false;
+        saveBtn.disabled = false;
+        btn.textContent = 'Reprocess';
+      }
     });
   }
 
@@ -805,7 +825,7 @@
           </div>
           <div class="review-content" id="addReviewContent"></div>
           <div class="review-actions">
-            <button class="btn-ghost" id="addReuploadBtn">Re-upload</button>
+            <button class="btn-ghost" id="addReprocessBtn">Reprocess</button>
             <button class="btn-primary" id="addSaveBtn">Add to Dashboard</button>
           </div>
         </div>
@@ -874,7 +894,7 @@
         const data = await r.json();
         if (!r.ok) throw new Error(data.error);
         status.innerHTML = '';
-        showAddReview(data.data, modal);
+        showAddReview(data.data, modal, selectedFiles);
       } catch (err) {
         status.innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
         uploadBtn.disabled = false;
@@ -883,7 +903,7 @@
     });
   }
 
-  function showAddReview(data, modal) {
+  function showAddReview(data, modal, files) {
     const section = document.getElementById('addReviewSection');
     const content = document.getElementById('addReviewContent');
     section.style.display = 'block';
@@ -935,9 +955,28 @@
       }
     });
 
-    document.getElementById('addReuploadBtn').addEventListener('click', () => {
-      modal.remove();
-      renderAddSyllabusModal();
+    document.getElementById('addReprocessBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('addReprocessBtn');
+      const saveBtn = document.getElementById('addSaveBtn');
+      btn.disabled = true;
+      saveBtn.disabled = true;
+      btn.textContent = 'Reprocessing...';
+      document.getElementById('addReviewContent').innerHTML = '<div class="status-loading" style="padding:32px 0"><div class="loading-spinner small"></div> Re-parsing with AI... this takes 10–20 seconds</div>';
+
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+
+      try {
+        const r = await fetch('/api/upload-syllabus', { method: 'POST', body: fd });
+        const result = await r.json();
+        if (!r.ok) throw new Error(result.error);
+        showAddReview(result.data, modal, files);
+      } catch (err) {
+        document.getElementById('addReviewContent').innerHTML = `<div class="status-error">${esc(err.message)}</div>`;
+        btn.disabled = false;
+        saveBtn.disabled = false;
+        btn.textContent = 'Reprocess';
+      }
     });
   }
 

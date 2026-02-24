@@ -85,8 +85,24 @@ async function callOpenAIWithFiles(textContent, files) {
   }
 
   const data = await res.json();
-  const reply = data.output_text || data.output?.[0]?.content?.[0]?.text;
-  if (!reply) throw new Error('OpenAI returned an empty response.');
+  let reply = data.output_text;
+  if (!reply && data.output) {
+    for (const item of data.output) {
+      if (item.type === 'message' && item.content) {
+        for (const block of item.content) {
+          if (block.type === 'output_text' || block.type === 'text') {
+            reply = block.text;
+            break;
+          }
+        }
+      }
+      if (reply) break;
+    }
+  }
+  if (!reply) {
+    console.error('Unexpected Responses API format:', JSON.stringify(data).slice(0, 500));
+    throw new Error('OpenAI returned an empty response.');
+  }
   return reply;
 }
 
@@ -390,7 +406,8 @@ app.post('/api/save-schedule', authMiddleware, async (req, res) => {
   }
 
   try {
-    await supabase.from('semesters').update({ is_active: false }).eq('user_id', req.userId);
+    const { error: deactivateErr } = await supabase.from('semesters').update({ is_active: false }).eq('user_id', req.userId);
+    if (deactivateErr) console.error('Deactivate warning:', deactivateErr.message);
 
     const { data: sem, error: semErr } = await supabase.from('semesters').insert({
       user_id: req.userId, name: semester_name, start_date: semester_start, end_date: semester_end
@@ -399,15 +416,16 @@ app.post('/api/save-schedule', authMiddleware, async (req, res) => {
 
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i];
+      const shortName = cls.short_name || cls.name.split(' ').slice(0, 2).join(' ').substring(0, 20);
       const { data: classRow, error: clsErr } = await supabase.from('classes').insert({
-        semester_id: sem.id, name: cls.name, short_name: cls.short_name,
+        semester_id: sem.id, name: cls.name, short_name: shortName,
         class_key: 'class' + (i + 1), icon: CLASS_ICONS[i % CLASS_ICONS.length], color_index: i % 8
       }).select().single();
       if (clsErr) throw clsErr;
 
       const assignments = (cls.assignments || []).map(a => ({
-        class_id: classRow.id, title: a.title, date: a.date, end_date: a.end_date || null, type: a.type || 'due'
-      }));
+        class_id: classRow.id, title: a.title || 'Untitled', date: a.date, end_date: a.end_date || null, type: a.type || 'due'
+      })).filter(a => a.date);
       if (assignments.length > 0) {
         const { error: aErr } = await supabase.from('assignments').insert(assignments);
         if (aErr) throw aErr;
@@ -416,8 +434,8 @@ app.post('/api/save-schedule', authMiddleware, async (req, res) => {
 
     res.json({ ok: true, semesterId: sem.id });
   } catch (err) {
-    console.error('Save error:', err.message);
-    res.status(500).json({ error: 'Failed to save schedule' });
+    console.error('Save error:', err.message, err.details || '', err.hint || '');
+    res.status(500).json({ error: 'Failed to save schedule: ' + (err.message || 'Unknown error') });
   }
 });
 
@@ -448,8 +466,9 @@ app.post('/api/add-to-schedule', authMiddleware, async (req, res) => {
       if (match) {
         classId = match.id;
       } else {
+        const shortName = cls.short_name || cls.name.split(' ').slice(0, 2).join(' ').substring(0, 20);
         const { data: classRow, error: clsErr } = await supabase.from('classes').insert({
-          semester_id: semester.id, name: cls.name, short_name: cls.short_name,
+          semester_id: semester.id, name: cls.name, short_name: shortName,
           class_key: 'class' + (nextIndex + 1), icon: CLASS_ICONS[nextIndex % CLASS_ICONS.length], color_index: nextIndex % 8
         }).select().single();
         if (clsErr) throw clsErr;
@@ -458,8 +477,8 @@ app.post('/api/add-to-schedule', authMiddleware, async (req, res) => {
       }
 
       const assignments = (cls.assignments || []).map(a => ({
-        class_id: classId, title: a.title, date: a.date, end_date: a.end_date || null, type: a.type || 'due'
-      }));
+        class_id: classId, title: a.title || 'Untitled', date: a.date, end_date: a.end_date || null, type: a.type || 'due'
+      })).filter(a => a.date);
       if (assignments.length > 0) {
         const { error: aErr } = await supabase.from('assignments').insert(assignments);
         if (aErr) throw aErr;

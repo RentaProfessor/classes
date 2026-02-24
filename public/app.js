@@ -153,6 +153,10 @@
         </div>
 
         <div id="pastePane" style="display:none">
+          <div class="paste-actions">
+            <button type="button" class="btn-ghost btn-sm" id="clipboardPasteBtn">📋 Paste from Clipboard</button>
+            <button type="button" class="btn-ghost btn-sm" id="clearPasteBtn">✕ Clear</button>
+          </div>
           <textarea class="paste-textarea" id="pasteInput" placeholder="Paste your syllabus schedule text here...\n\nInclude class names, assignment titles, and dates."></textarea>
           <button class="btn-primary upload-submit" id="pasteBtn" disabled>
             <span id="pasteBtnText">Parse Pasted Text</span>
@@ -253,6 +257,20 @@
     const pasteInput = document.getElementById('pasteInput');
     const pasteBtn = document.getElementById('pasteBtn');
     pasteInput.addEventListener('input', () => { pasteBtn.disabled = pasteInput.value.trim().length < 20; });
+
+    document.getElementById('clipboardPasteBtn').addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        pasteInput.value = text;
+        pasteInput.dispatchEvent(new Event('input'));
+        pasteInput.focus();
+      } catch { pasteInput.focus(); }
+    });
+    document.getElementById('clearPasteBtn').addEventListener('click', () => {
+      pasteInput.value = '';
+      pasteInput.dispatchEvent(new Event('input'));
+      pasteInput.focus();
+    });
 
     pasteBtn.addEventListener('click', async () => {
       const btnText = document.getElementById('pasteBtnText');
@@ -1174,6 +1192,10 @@
         </div>
 
         <div id="addPastePane" style="display:none">
+          <div class="paste-actions">
+            <button type="button" class="btn-ghost btn-sm" id="addClipboardPasteBtn">📋 Paste from Clipboard</button>
+            <button type="button" class="btn-ghost btn-sm" id="addClearPasteBtn">✕ Clear</button>
+          </div>
           <textarea class="paste-textarea" id="addPasteInput" placeholder="Paste your syllabus schedule text here...\n\nInclude class names, assignment titles, and dates."></textarea>
           <button class="btn-primary upload-submit" id="addPasteBtn" disabled>
             <span id="addPasteBtnText">Parse Pasted Text</span>
@@ -1278,6 +1300,20 @@
     const addPasteInput = document.getElementById('addPasteInput');
     const addPasteBtn = document.getElementById('addPasteBtn');
     addPasteInput.addEventListener('input', () => { addPasteBtn.disabled = addPasteInput.value.trim().length < 20; });
+
+    document.getElementById('addClipboardPasteBtn').addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        addPasteInput.value = text;
+        addPasteInput.dispatchEvent(new Event('input'));
+        addPasteInput.focus();
+      } catch { addPasteInput.focus(); }
+    });
+    document.getElementById('addClearPasteBtn').addEventListener('click', () => {
+      addPasteInput.value = '';
+      addPasteInput.dispatchEvent(new Event('input'));
+      addPasteInput.focus();
+    });
 
     addPasteBtn.addEventListener('click', async () => {
       const btnText = document.getElementById('addPasteBtnText');

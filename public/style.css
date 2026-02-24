@@ -1400,7 +1400,8 @@ body {
   border-bottom: 2px solid var(--border);
 }
 .input-tab {
-  padding: 10px 24px;
+  flex: 1;
+  padding: 12px 24px;
   background: none;
   border: none;
   color: var(--text-dim);
@@ -1410,11 +1411,22 @@ body {
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
   transition: color 0.2s, border-color 0.2s;
+  text-align: center;
 }
 .input-tab:hover { color: var(--text-muted); }
 .input-tab.active {
   color: var(--text);
   border-bottom-color: #6C63FF;
+}
+
+.paste-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.paste-actions .btn-ghost {
+  flex: 1;
+  text-align: center;
 }
 
 /* ========== PASTE TEXTAREA ========== */
@@ -1753,7 +1765,7 @@ body {
   .upload-zone-sub { font-size: 0.78rem; }
   .paste-textarea { min-height: 160px; padding: 14px; font-size: 0.88rem; }
   .input-tabs { margin-bottom: 16px; }
-  .input-tab { padding: 12px 0; font-size: 0.92rem; flex: 1; text-align: center; }
+  .input-tab { padding: 12px 0; font-size: 0.92rem; }
   .review-assignment { flex-wrap: wrap; gap: 6px; }
   .review-a-date { min-width: auto; }
   .review-a-title { min-width: 100%; order: 3; }

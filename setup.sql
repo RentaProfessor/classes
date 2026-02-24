@@ -27,9 +27,13 @@ CREATE TABLE IF NOT EXISTS assignments (
   title TEXT NOT NULL,
   date TEXT NOT NULL,
   end_date TEXT,
+  due_time TEXT,
   type TEXT NOT NULL DEFAULT 'due',
   completed BOOLEAN DEFAULT false
 );
+
+-- Run this if the table already exists and you need to add the column:
+-- ALTER TABLE assignments ADD COLUMN IF NOT EXISTS due_time TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_semesters_user ON semesters(user_id);
 CREATE INDEX IF NOT EXISTS idx_classes_semester ON classes(semester_id);

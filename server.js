@@ -464,8 +464,8 @@ app.get('/api/dashboard', authMiddleware, async (req, res) => {
         .select('*').eq('class_id', cls.id);
       for (const a of (aRows || [])) {
         allAssignments.push({
-          id: a.id, date: a.date, endDate: a.end_date, classId: cls.class_key,
-          title: a.title, type: a.type, completed: !!a.completed
+          id: a.id, date: a.date, endDate: a.end_date, dueTime: a.due_time || null,
+          classId: cls.class_key, title: a.title, type: a.type, completed: !!a.completed
         });
       }
     }
@@ -524,7 +524,7 @@ app.delete('/api/semester/:id', authMiddleware, async (req, res) => {
 // ======================== ASSIGNMENT CRUD ========================
 
 app.post('/api/assignment', authMiddleware, async (req, res) => {
-  const { classId, title, date, end_date, type } = req.body;
+  const { classId, title, date, end_date, type, due_time } = req.body;
   if (!classId || !title || !date || !type) return res.status(400).json({ error: 'Missing required fields' });
 
   try {
@@ -534,12 +534,12 @@ app.post('/api/assignment', authMiddleware, async (req, res) => {
     if (!cls || cls.semesters.user_id !== req.userId) return res.status(404).json({ error: 'Class not found' });
 
     const { data: row, error } = await supabase.from('assignments').insert({
-      class_id: classId, title, date, end_date: end_date || null, type
+      class_id: classId, title, date, end_date: end_date || null, type, due_time: due_time || null
     }).select().single();
     if (error) throw error;
 
     const classKey = (await supabase.from('classes').select('class_key').eq('id', classId).single()).data.class_key;
-    res.json({ ok: true, assignment: { id: row.id, date: row.date, endDate: row.end_date, classId: classKey, title: row.title, type: row.type, completed: false } });
+    res.json({ ok: true, assignment: { id: row.id, date: row.date, endDate: row.end_date, dueTime: row.due_time || null, classId: classKey, title: row.title, type: row.type, completed: false } });
   } catch (err) {
     console.error('Create assignment error:', err.message);
     res.status(500).json({ error: 'Failed to create assignment' });
@@ -547,7 +547,7 @@ app.post('/api/assignment', authMiddleware, async (req, res) => {
 });
 
 app.put('/api/assignment/:id', authMiddleware, async (req, res) => {
-  const { title, date, end_date, type } = req.body;
+  const { title, date, end_date, type, due_time } = req.body;
   if (!title || !date || !type) return res.status(400).json({ error: 'Missing required fields' });
 
   try {
@@ -558,7 +558,7 @@ app.put('/api/assignment/:id', authMiddleware, async (req, res) => {
     if (!owned) return res.status(404).json({ error: 'Not found' });
 
     const { error } = await supabase.from('assignments').update({
-      title, date, end_date: end_date || null, type
+      title, date, end_date: end_date || null, type, due_time: due_time || null
     }).eq('id', req.params.id);
     if (error) throw error;
 

@@ -96,6 +96,15 @@
     return 'upcoming';
   }
 
+  function formatTime(t) {
+    if (!t) return '';
+    const [h, m] = t.split(':').map(Number);
+    if (isNaN(h)) return '';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return m ? `${h12}:${String(m).padStart(2,'0')} ${ampm}` : `${h12} ${ampm}`;
+  }
+
   function countdownClass(days) {
     if (days <= 3) return 'urgent';
     if (days <= 7) return 'soon';
@@ -619,6 +628,7 @@
           <div class="tl-title">${esc(a.title)}</div>
           <div class="tl-meta">
             <span class="tl-badge ${a.type}">${a.type}</span>
+            ${a.dueTime ? `<span class="tl-time">${formatTime(a.dueTime)}</span>` : ''}
             ${a.endDate ? `<span style="font-size:0.7rem;color:var(--text-dim)">→ ${parseDate(a.endDate).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>` : ''}
           </div>
         </div>
@@ -726,7 +736,8 @@
         ${events.map(e => {
           const c = getColor(e.classId);
           const cls = CLASSES[e.classId] || { short: '?' };
-          return `<div class="cal-event" data-aid="${e.id}" style="background:rgba(${c.rgb},0.08);color:${c.hex};border-left:2px solid ${c.hex};cursor:pointer" title="${cls.short}: ${e.title}">${esc(e.title)}</div>`;
+          const timeStr = e.dueTime ? ' @ ' + formatTime(e.dueTime) : '';
+          return `<div class="cal-event" data-aid="${e.id}" style="background:rgba(${c.rgb},0.08);color:${c.hex};border-left:2px solid ${c.hex};cursor:pointer" title="${cls.short}: ${e.title}${timeStr}">${esc(e.title)}${e.dueTime ? '<span class="cal-event-time">' + formatTime(e.dueTime) + '</span>' : ''}</div>`;
         }).join('')}
       </div>`;
     }
@@ -774,7 +785,7 @@
           <button class="tl-check ${a.completed ? 'checked' : ''}" data-id="${a.id}" title="Mark complete" style="width:16px;height:16px;min-width:16px"></button>
           <div class="class-item-info" data-aid="${a.id}" style="cursor:pointer">
             <div class="class-item-title">${esc(a.title)}</div>
-            <div class="class-item-date">${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+            <div class="class-item-date">${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}${a.dueTime ? ' · ' + formatTime(a.dueTime) : ''}</div>
           </div>
           <span class="class-item-badge tl-badge ${a.type}">${a.type}</span>
         </div>`;
@@ -793,7 +804,7 @@
             <button class="tl-check ${a.completed ? 'checked' : ''}" data-id="${a.id}" title="Mark complete" style="width:16px;height:16px;min-width:16px"></button>
             <div class="class-item-info" data-aid="${a.id}" style="cursor:pointer">
               <div class="class-item-title">${esc(a.title)}</div>
-              <div class="class-item-date">${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+              <div class="class-item-date">${d.toLocaleDateString('en-US',{month:'short',day:'numeric'})}${a.dueTime ? ' · ' + formatTime(a.dueTime) : ''}</div>
             </div>
             <span class="class-item-badge tl-badge ${a.type}">${a.type}</span>
           </div>`;
@@ -1003,9 +1014,15 @@
             <label>Title</label>
             <input type="text" id="asgTitle" value="${isEdit ? esc(existingAssignment.title) : ''}" placeholder="e.g. Midterm Exam" required />
           </div>
-          <div class="form-group">
-            <label>Date</label>
-            <input type="date" id="asgDate" value="${isEdit ? existingAssignment.date : ''}" required />
+          <div class="form-row-2">
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="asgDate" value="${isEdit ? existingAssignment.date : ''}" required />
+            </div>
+            <div class="form-group">
+              <label>Time Due <span style="color:var(--text-dim);font-weight:400">(optional)</span></label>
+              <input type="time" id="asgTime" value="${isEdit && existingAssignment.dueTime ? existingAssignment.dueTime : ''}" />
+            </div>
           </div>
           <div class="form-group">
             <label>Type</label>
@@ -1036,6 +1053,7 @@
         date: document.getElementById('asgDate').value,
         type: document.getElementById('asgType').value,
         end_date: null,
+        due_time: document.getElementById('asgTime').value || null,
       };
 
       try {
@@ -1049,7 +1067,7 @@
           if (!r.ok) throw new Error(result.error);
 
           const a = ASSIGNMENTS.find(x => x.id === existingAssignment.id);
-          if (a) { a.title = payload.title; a.date = payload.date; a.type = payload.type; a.endDate = null; }
+          if (a) { a.title = payload.title; a.date = payload.date; a.type = payload.type; a.endDate = null; a.dueTime = payload.due_time; }
         } else {
           payload.classId = parseInt(document.getElementById('asgClassSelect').value);
           const r = await fetch('/api/assignment', {
@@ -1453,8 +1471,10 @@
         else if (days === 0) status = 'Today';
         else status = days + 'd left';
 
+        const dateStr = isNaN(d.getTime()) ? a.date : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const timeStr = a.dueTime ? ' ' + formatTime(a.dueTime) : '';
         return [
-          isNaN(d.getTime()) ? a.date : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+          dateStr + timeStr,
           a.title,
           a.type.charAt(0).toUpperCase() + a.type.slice(1),
           status

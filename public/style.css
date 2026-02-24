@@ -1436,10 +1436,10 @@ body {
 .paste-textarea {
   width: 100%;
   min-height: 220px;
-  background: rgba(255,255,255,0.03);
-  border: 2px dashed rgba(255,255,255,0.12);
+  background: var(--bg-surface);
+  border: 2px dashed var(--border-subtle);
   border-radius: 16px;
-  color: #fff;
+  color: var(--text);
   font-family: inherit;
   font-size: 0.92rem;
   line-height: 1.6;
@@ -1449,8 +1449,8 @@ body {
   transition: border-color 0.2s;
   box-sizing: border-box;
 }
-.paste-textarea::placeholder { color: rgba(255,255,255,0.28); }
-.paste-textarea:focus { border-color: rgba(108,99,255,0.5); }
+.paste-textarea::placeholder { color: var(--text-dim); }
+.paste-textarea:focus { border-color: #6C63FF; box-shadow: 0 0 0 2px rgba(108,99,255,0.15); }
 
 /* ========== ASSIGNMENT MODAL ========== */
 .asg-modal-actions {

@@ -1776,41 +1776,101 @@ body {
   .review-actions .btn-ghost,
   .review-actions .btn-primary { flex: none; width: 100%; text-align: center; }
 
-  /* Hero / Landing */
+  /* Hero / Landing — no viewport height tricks, just solid top-down flow */
   .hero {
-    padding: 20px 16px;
-    min-height: calc(100vh - 40px);
-    min-height: calc(100dvh - 40px);
+    min-height: 0;
+    display: block;
+    padding: 0 20px;
+    padding-top: max(60px, env(safe-area-inset-top, 0px) + 48px);
+    padding-bottom: 48px;
+    -webkit-overflow-scrolling: touch;
   }
-  .hero-inner { max-width: 100%; padding: 0 4px; }
-  .hero-title { font-size: 1.8rem; margin-bottom: 12px; letter-spacing: -0.5px; }
-  .hero-sub { font-size: 0.88rem; margin-bottom: 28px; line-height: 1.5; }
-  .hero-features {
-    gap: 10px;
-    margin-bottom: 28px;
+  .hero-inner {
     max-width: 100%;
+    text-align: left;
+    padding: 0;
   }
-  .hf { font-size: 0.85rem; gap: 10px; }
-  .hf-icon { font-size: 1.1rem; width: 24px; }
-  .hero-cta {
-    padding: 14px 32px;
+  .hero-title {
+    font-size: 2.2rem;
+    margin-bottom: 10px;
+    letter-spacing: -0.5px;
+  }
+  .hero-sub {
     font-size: 0.95rem;
+    margin-bottom: 32px;
+    line-height: 1.55;
+  }
+  .hero-features {
+    gap: 14px;
+    margin-bottom: 36px;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .hf {
+    font-size: 0.9rem;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+  }
+  .hf-icon { font-size: 1.15rem; width: 26px; }
+  .hero-cta {
+    padding: 16px 32px;
+    font-size: 1rem;
     width: 100%;
-    max-width: 320px;
+    border-radius: 14px;
+    display: block;
+    text-align: center;
+  }
+  .hero-cta:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  .hero-cta:active {
+    transform: scale(0.98);
+    opacity: 0.9;
   }
 
   /* Auth modal on mobile */
-  .modal-overlay { padding: 16px; align-items: center; }
-  .modal-card {
-    padding: 24px 20px;
-    max-width: 100%;
-    border-radius: 16px;
+  .modal-overlay {
+    padding: 0;
+    align-items: flex-end;
   }
-  .auth-tabs { margin-bottom: 20px; }
-  .auth-tab { padding: 10px 8px; font-size: 0.85rem; }
+  .modal-card {
+    padding: 28px 20px;
+    padding-bottom: max(28px, env(safe-area-inset-bottom, 0px) + 20px);
+    max-width: 100%;
+    border-radius: 20px 20px 0 0;
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  .modal-overlay.open .modal-card {
+    transform: translateY(0);
+  }
+  .modal-close { top: 12px; right: 14px; font-size: 1.6rem; padding: 8px; }
+  .auth-tabs {
+    margin-bottom: 20px;
+    padding: 4px;
+  }
+  .auth-tab { padding: 12px 8px; font-size: 0.88rem; }
   .auth-form { gap: 14px; }
-  .form-group input { padding: 12px; font-size: 0.9rem; }
-  .form-submit { padding: 14px; font-size: 0.92rem; }
+  .form-group label { font-size: 0.85rem; }
+  .form-group input {
+    padding: 14px;
+    font-size: 16px;
+    border-radius: 10px;
+  }
+  .form-submit {
+    padding: 16px;
+    font-size: 0.95rem;
+    border-radius: 12px;
+    margin-top: 4px;
+  }
 
   /* Manage classes in settings */
   .manage-class-row { padding: 8px 10px; }

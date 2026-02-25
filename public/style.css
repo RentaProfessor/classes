@@ -1777,11 +1777,40 @@ body {
   .review-actions .btn-primary { flex: none; width: 100%; text-align: center; }
 
   /* Hero / Landing */
-  .hero { padding: 24px 16px; }
-  .hero-title { font-size: 2rem; }
-  .hero-sub { font-size: 0.92rem; }
-  .hero-cta { padding: 14px 32px; font-size: 0.95rem; }
-  .hero-features { gap: 10px; }
+  .hero {
+    padding: 20px 16px;
+    min-height: calc(100vh - 40px);
+    min-height: calc(100dvh - 40px);
+  }
+  .hero-inner { max-width: 100%; padding: 0 4px; }
+  .hero-title { font-size: 1.8rem; margin-bottom: 12px; letter-spacing: -0.5px; }
+  .hero-sub { font-size: 0.88rem; margin-bottom: 28px; line-height: 1.5; }
+  .hero-features {
+    gap: 10px;
+    margin-bottom: 28px;
+    max-width: 100%;
+  }
+  .hf { font-size: 0.85rem; gap: 10px; }
+  .hf-icon { font-size: 1.1rem; width: 24px; }
+  .hero-cta {
+    padding: 14px 32px;
+    font-size: 0.95rem;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  /* Auth modal on mobile */
+  .modal-overlay { padding: 16px; align-items: center; }
+  .modal-card {
+    padding: 24px 20px;
+    max-width: 100%;
+    border-radius: 16px;
+  }
+  .auth-tabs { margin-bottom: 20px; }
+  .auth-tab { padding: 10px 8px; font-size: 0.85rem; }
+  .auth-form { gap: 14px; }
+  .form-group input { padding: 12px; font-size: 0.9rem; }
+  .form-submit { padding: 14px; font-size: 0.92rem; }
 
   /* Manage classes in settings */
   .manage-class-row { padding: 8px 10px; }

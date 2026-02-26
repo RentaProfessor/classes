@@ -142,8 +142,16 @@ function authMiddleware(req, res, next) {
   }
 }
 
+const IS_PROD = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+
 function setAuthCookie(res, token) {
-  res.cookie('token', token, { httpOnly: true, sameSite: 'lax', maxAge: 30 * 24 * 60 * 60 * 1000 });
+  res.cookie('token', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: IS_PROD,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
 }
 
 const EXTRACTION_PROMPT = `You extract structured class schedule data from syllabuses, spreadsheets, and calendar exports. Output ONLY valid JSON — no markdown, no backticks, no explanation. Use this exact schema:
